@@ -1,0 +1,3 @@
+[deps]
+Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
+LAMMPS_jll = "5b3ab26d-9607-527c-88ea-8fe5ba57cafe"

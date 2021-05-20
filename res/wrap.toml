@@ -1,0 +1,11 @@
+[general]
+library_name = "liblammps"
+output_file_path = "../src/api.jl"
+module_name = "API"
+prologue_file_path = "./prologue.jl"
+smart_de_anonymize = true
+use_deterministic_symbol = true
+
+[codegen.macro]
+macro_mode = "basic"
+add_comment_for_skipped_macro = false
