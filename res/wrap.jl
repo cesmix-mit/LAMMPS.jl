@@ -7,7 +7,8 @@ isdir(header_dir) || error("$header_dir does not exist")
 
 const LAMMPS_INCLUDE = normpath(header_dir)
 
-args = ["-I$LAMMPS_INCLUDE"]
+args = get_default_args()
+push!(args, "-I$LAMMPS_INCLUDE")
 
 options = load_options(joinpath(@__DIR__, "wrap.toml"))
 
