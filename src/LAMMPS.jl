@@ -2,7 +2,7 @@ module LAMMPS
 
 include("api.jl")
 
-export LMP
+export LMP, command
 
 mutable struct LMP
     handle::Ptr{Cvoid}
@@ -36,6 +36,22 @@ end
 
 function version(lmp::LMP)
     API.lammps_version(lmp)
+end
+
+function check(lmp::LMP)
+    err = API.lammps_has_error(lmp)
+    if err != 0
+        # TODO: Check err == 1 or err == 2 (MPI)
+        buf = zeros(UInt8, 100)
+        API.lammps_get_last_error_message(lmp, buf, length(buf))
+        error(String(buf))
+    end
+end
+
+function command(lmp::LMP, cmd)
+    ptr = API.lammps_command(lmp, cmd)
+    ptr == C_NULL && check(lmp)
+    nothing
 end
 
 end # module
