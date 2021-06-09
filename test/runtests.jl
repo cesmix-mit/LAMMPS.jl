@@ -1,6 +1,10 @@
 using Test
 using LAMMPS
 
-LAMMPS.LMP() do lmp
-    @test LAMMPS.API.lammps_version(lmp) >= 0
+LMP() do lmp
+    @test LAMMPS.version(lmp) >= 0
+end
+
+LMP(["-screen", "myscreen"]) do lmp
+    @test LAMMPS.version(lmp) >= 0
 end
