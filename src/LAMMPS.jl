@@ -2,7 +2,7 @@ module LAMMPS
 
 include("api.jl")
 
-export LMP, command
+export LMP, command, get_natoms, extract_atom, extract_compute
 
 mutable struct LMP
     handle::Ptr{Cvoid}
@@ -52,6 +52,76 @@ function command(lmp::LMP, cmd)
     ptr = API.lammps_command(lmp, cmd)
     ptr == C_NULL && check(lmp)
     nothing
+end
+
+function get_natoms(lmp::LMP)
+    API.lammps_get_natoms(lmp)
+end
+
+function extract_atom(lmp::LMP, name, dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing)
+    if dtype === nothing
+        dtype = API.lammps_extract_atom_datatype(lmp, name)
+    end
+    dtype = convert(API._LMP_DATATYPE_CONST, dtype)
+
+    if dtype == API.LAMMPS_INT
+        type = Ptr{Int32}
+    elseif dtype == API.LAMMPS_INT_2D
+        type = Ptr{Ptr{Int32}}
+    elseif dtype == API.LAMMPS_INT64
+        type = Ptr{Int64}
+    elseif dtype == API.LAMMPS_INT64_2D
+        type = Ptr{Ptr{Int64}}
+    elseif dtype == API.LAMMPS_DOUBLE
+        type = Ptr{Float64}
+    elseif dtype == API.LAMMPS_DOUBLE_2D
+        type = Ptr{Ptr{Float64}}
+    else
+        @assert false "Unknown dtype: $dtype"
+    end
+    ptr = API.lammps_extract_atom(lmp, name)
+    reinterpret(type, ptr)
+end
+
+function extract_compute(lmp, name, style, type)
+    if type == API.LMP_TYPE_SCALAR
+        if style == API.LMP_STYLE_GLOBAL
+            dtype = Ptr{Float64}
+        elseif style == API.LMP_STYLE_LOCAL
+            dtype = Ptr{Cint}
+        elseif style == API.LMP_STYLE_ATOM
+            return nothing
+        end
+        extract = true
+    elseif type == API.LMP_TYPE_VECTOR
+        dtype = Ptr{Float64}
+        extract = false
+    elseif type == API.LMP_TYPE_ARRAY
+        dtype = Ptr{Ptr{Float64}}
+        extract = false
+    elseif type == API.LMP_SIZE_COLS
+        dtype = Ptr{Cint}
+        extract = true
+    elseif type == API.LMP_SIZE_ROWS ||
+           type == API.LMP_SIZE_VECTOR
+        if style == API.LMP_STYLE_ATOM
+            return nothing
+        end
+        dtype = Ptr{Cint}
+        extract = true
+    else
+        @assert false "Unknown type: $type"
+    end
+
+    ptr = API.lammps_extract_compute(lmp, name, style, type)
+    ptr == C_NULL && check(lmp)
+
+    ptr = reinterpret(dtype, ptr)
+
+    if extract
+        return Base.unsafe_load(ptr)
+    end
+    return ptr
 end
 
 end # module
