@@ -17,6 +17,11 @@ mutable struct LMP
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
+function LMP(f::Function)
+    lmp = LMP()
+    f(lmp)
+end
+
 function version(lmp::LMP)
     API.lammps_version(lmp)
 end
