@@ -2,7 +2,7 @@ module LAMMPS
 
 include("api.jl")
 
-export LMP, command, get_natoms, extract_atom, extract_compute
+export LMP, command, get_natoms, extract_atom, extract_compute, extract_global
 
 mutable struct LMP
     handle::Ptr{Cvoid}
@@ -58,12 +58,7 @@ function get_natoms(lmp::LMP)
     API.lammps_get_natoms(lmp)
 end
 
-function extract_atom(lmp::LMP, name, dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing)
-    if dtype === nothing
-        dtype = API.lammps_extract_atom_datatype(lmp, name)
-    end
-    dtype = convert(API._LMP_DATATYPE_CONST, dtype)
-
+function dtype2type(dtype::API._LMP_DATATYPE_CONST)
     if dtype == API.LAMMPS_INT
         type = Ptr{Int32}
     elseif dtype == API.LAMMPS_INT_2D
@@ -76,14 +71,100 @@ function extract_atom(lmp::LMP, name, dtype::Union{Nothing, API._LMP_DATATYPE_CO
         type = Ptr{Float64}
     elseif dtype == API.LAMMPS_DOUBLE_2D
         type = Ptr{Ptr{Float64}}
+    elseif dtype == API.LAMMPS_STRING
+        type = Ptr{Cchar}
     else
         @assert false "Unknown dtype: $dtype"
     end
-    ptr = API.lammps_extract_atom(lmp, name)
-    reinterpret(type, ptr)
+    return type
 end
 
-function extract_compute(lmp, name, style, type)
+function extract_global(lmp::LMP, name, dtype=nothing)
+    if dtype === nothing
+        dtype = API.lammps_extract_global_datatype(lmp, name)
+    end
+    dtype = API._LMP_DATATYPE_CONST(dtype)
+    type = dtype2type(dtype)
+
+    ptr = API.lammps_extract_global(lmp, name)
+    ptr = reinterpret(type, ptr)
+
+    if ptr !== C_NULL
+        if dtype == API.LAMMPS_STRING
+            return Base.unsafe_string(ptr)
+        end
+        # TODO: deal with non-scalar data
+        return Base.unsafe_load(ptr)
+    end
+end
+
+function unsafe_wrap(ptr, shape)
+    if length(shape) > 1
+        # We got a list of ptrs,
+        # but the first pointer points to the whole data
+        ptr = Base.unsafe_load(ptr)
+
+        @assert length(shape) == 2
+
+        # Note: Julia like Fortran is column-major
+        #       so the data is transposed from Julia's perspective
+        shape = reverse(shape)
+    end
+
+    # TODO: Who is responsible for freeing this data
+    array = Base.unsafe_wrap(Array, ptr, shape, own=false)
+    if length(shape) == 2
+        array = transpose(array)
+    end
+    return array
+end
+
+"""
+    extract_atom(lmp, name, dtype=nothing, )
+"""
+function extract_atom(lmp::LMP, name,
+                      dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
+                      axes1=nothing, axes2=nothing)
+
+
+    if dtype === nothing
+        dtype = API.lammps_extract_atom_datatype(lmp, name)
+    end
+    dtype = convert(API._LMP_DATATYPE_CONST, dtype)
+
+    if axes1 === nothing
+        if name == "mass"
+            axes1 = extract_global(lmp, "ntypes") + 1
+        else
+            axes1 = extract_global(lmp, "nlocal")
+        end
+    end
+
+    if axes2 === nothing
+        if dtype in (API.LAMMPS_INT_2D, API.LAMMPS_INT64_2D, API.LAMMPS_DOUBLE_2D)
+            # TODO: Other fields?
+            if name in ("x", "v", "f", "angmom", "torque", "csforce", "vforce")
+                axes2 = 3
+            else
+                axes2 = 2
+            end
+        end
+    end
+
+    if axes2 !== nothing
+        shape = (axes1, axes2)
+    else
+        shape = (axes1, )
+    end
+
+    type = dtype2type(dtype)
+    ptr = API.lammps_extract_atom(lmp, name)
+    ptr = reinterpret(type, ptr)
+
+    unsafe_wrap(ptr, shape)
+end
+
+function unsafe_extract_compute(lmp, name, style, type)
     if type == API.LMP_TYPE_SCALAR
         if style == API.LMP_STYLE_GLOBAL
             dtype = Ptr{Float64}
@@ -122,6 +203,30 @@ function extract_compute(lmp, name, style, type)
         return Base.unsafe_load(ptr)
     end
     return ptr
+end
+
+function extract_compute(lmp, name, style, type)
+    ptr = unsafe_extract_compute(lmp, name, style, type)
+
+    if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
+        if type == API.LMP_TYPE_VECTOR
+            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_VECTOR)
+            return unsafe_wrap(ptr, (nrows,))
+        elseif type == API.LMP_TYPE_ARRAY
+            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_ROWS)
+            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
+            return unsafe_wrap(ptr, (nrows, ncols))
+        end
+    else style = API.LMP_STYLE_ATOM
+        nlocal = extract_global(lmp, "nlocal")
+        if type == API.LMP_TYPE_VECTOR
+            return unsafe_wrap(ptr, (nlocal,))
+        elseif type == API.LMP_TYPE_ARRAY
+            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
+            return unsafe_wrap(ptr, (nlocal, ncols))
+        end
+    end
+    return nothing
 end
 
 end # module
