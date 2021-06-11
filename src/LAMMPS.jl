@@ -54,8 +54,16 @@ function command(lmp::LMP, cmd)
     nothing
 end
 
+"""
+    get_natoms(lmp::LMP)::Int64
+
+Get the total number of atoms in the LAMMPS instance.
+
+Will be precise up to 53-bit signed integer due to the
+underlying `lammps_get_natoms` returning a Float64.
+"""
 function get_natoms(lmp::LMP)
-    API.lammps_get_natoms(lmp)
+    Int64(API.lammps_get_natoms(lmp))
 end
 
 function dtype2type(dtype::API._LMP_DATATYPE_CONST)
