@@ -2,7 +2,8 @@ module LAMMPS
 
 include("api.jl")
 
-export LMP, command, get_natoms, extract_atom, extract_compute, extract_global
+export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
+       gather_atoms
 
 mutable struct LMP
     handle::Ptr{Cvoid}
@@ -137,14 +138,14 @@ function extract_atom(lmp::LMP, name,
 
     if dtype === nothing
         dtype = API.lammps_extract_atom_datatype(lmp, name)
+        dtype = API._LMP_DATATYPE_CONST(dtype)
     end
-    dtype = convert(API._LMP_DATATYPE_CONST, dtype)
 
     if axes1 === nothing
         if name == "mass"
             axes1 = extract_global(lmp, "ntypes") + 1
         else
-            axes1 = extract_global(lmp, "nlocal")
+            axes1 = extract_global(lmp, "nlocal") % Int
         end
     end
 
@@ -172,7 +173,7 @@ function extract_atom(lmp::LMP, name,
     unsafe_wrap(ptr, shape)
 end
 
-function unsafe_extract_compute(lmp, name, style, type)
+function unsafe_extract_compute(lmp::LMP, name, style, type)
     if type == API.LMP_TYPE_SCALAR
         if style == API.LMP_STYLE_GLOBAL
             dtype = Ptr{Float64}
@@ -213,7 +214,7 @@ function unsafe_extract_compute(lmp, name, style, type)
     return ptr
 end
 
-function extract_compute(lmp, name, style, type)
+function extract_compute(lmp::LMP, name, style, type)
     ptr = unsafe_extract_compute(lmp, name, style, type)
 
     if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
@@ -235,6 +236,21 @@ function extract_compute(lmp, name, style, type)
         end
     end
     return nothing
+end
+
+function gather_atoms(lmp::LMP, name, T, count)
+    if T === Int32
+        dtype = 0
+    elseif T === Float64
+        dtype = 1
+    else
+        error("Only Int32 or Float64 allowed as T, got $T")
+    end
+    natoms = get_natoms(lmp)
+    data = Array{T, 2}(undef, (count, natoms))
+    API.lammps_gather_atoms(lmp, name, dtype, count, data)
+    check(lmp)
+    return data
 end
 
 end # module
