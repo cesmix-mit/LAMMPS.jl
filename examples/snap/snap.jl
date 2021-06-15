@@ -19,7 +19,7 @@ const ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3.) + 1)
 A = LMP(["-screen","none"]) do lmp
 
     M = 61
-    A = Array{Float64}(undef, M, 2*(ncoeff+1))
+    A = Array{Float64}(undef, M, 2*ncoeff) # bispectrum is 2*(ncoeff - 1) + 2
 
     for m in 1:M
         read_data_str = "read_data " * joinpath("data", string(m), "DATA")
@@ -40,16 +40,12 @@ A = LMP(["-screen","none"]) do lmp
         command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
         command(lmp, "run 0")
 
-        # LAMMPS returns this as double...
-        natoms = Int(get_natoms(lmp))
+        nlocal = extract_global(lmp, "nlocal")
 
         types = extract_atom(lmp, "type", LAMMPS.API.LAMMPS_INT)
-        types = Base.unsafe_wrap(Array, types, natoms, own=false)
-
         ids = extract_atom(lmp, "id", LAMMPS.API.LAMMPS_INT)
-        ids = Base.unsafe_wrap(Array, ids, natoms, own=false)
 
-        @info "Progress" m natoms
+        @info "Progress" m nlocal
 
         ###
         # Energy
@@ -62,29 +58,27 @@ A = LMP(["-screen","none"]) do lmp
         N1 = 96 # Number of type 1
         N2 = 96 # Number of type 2
 
-        # LMP_TYPE_ARRAY means list of list :/
-        bs = Base.unsafe_wrap(Array, bs, N1+N2, own=false)
-        bs = map(bs) do ptr
-            Base.unsafe_wrap(Array, ptr, ncoeff, own=false)
-        end
+        @assert count(==(1), types) == N1
+        @assert count(==(2), types) == N2
 
         # Make bispectrum sum vector
         row = Float64[]
 
         push!(row, N1)
-        for k in 1:ncoeff
+
+        for k in 1:(ncoeff-1)
             acc = 0.0
             for n in 1:N1
-                acc += bs[n][k]
+                acc += bs[k, n]
             end
             push!(row, acc)
         end
 
         push!(row, N2)
-        for k in 1:ncoeff
+        for k in 1:(ncoeff-1)
             acc = 0.0
             for n in N1 .+ (1:N2)
-                acc += bs[n][k]
+                acc += bs[k, n]
             end
             push!(row, acc)
         end
