@@ -122,9 +122,6 @@ function unsafe_wrap(ptr, shape)
 
     # TODO: Who is responsible for freeing this data
     array = Base.unsafe_wrap(Array, ptr, shape, own=false)
-    if length(shape) == 2
-        array = transpose(array)
-    end
     return array
 end
 

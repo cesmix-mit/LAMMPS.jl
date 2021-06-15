@@ -69,7 +69,7 @@ A = LMP(["-screen","none"]) do lmp
         for k in 1:(ncoeff-1)
             acc = 0.0
             for n in 1:N1
-                acc += bs[n, k]
+                acc += bs[k, n]
             end
             push!(row, acc)
         end
@@ -78,7 +78,7 @@ A = LMP(["-screen","none"]) do lmp
         for k in 1:(ncoeff-1)
             acc = 0.0
             for n in N1 .+ (1:N2)
-                acc += bs[n, k]
+                acc += bs[k, n]
             end
             push!(row, acc)
         end
