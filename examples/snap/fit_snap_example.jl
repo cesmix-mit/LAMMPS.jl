@@ -1,6 +1,5 @@
 using LinearAlgebra: norm, pinv
 using GalacticOptim, Optim
-using LAMMPS
 using Printf
 
 ################################################################################
