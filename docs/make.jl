@@ -24,4 +24,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/cesmix-mit/LAMMPS.jl",
+    devbranch = "main",
 )
