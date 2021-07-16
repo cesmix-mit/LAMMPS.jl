@@ -10,7 +10,7 @@ using LAMMPS
 ###
 
 const ntypes = 2
-const twojmax = 6
+const twojmax = 5
 
 const J = twojmax/2.
 const ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3.) + 1)
@@ -18,7 +18,7 @@ const ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3.) + 1)
 
 A = LMP(["-screen","none"]) do lmp
 
-    M = 61
+    M = 48
     A = Array{Float64}(undef, M, 2*ncoeff) # bispectrum is 2*(ncoeff - 1) + 2
 
     for m in 1:M
