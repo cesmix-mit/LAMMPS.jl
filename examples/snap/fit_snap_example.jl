@@ -15,7 +15,6 @@ const N2 = 96
 const N = N1 + N2
 const M1 = 48
 const M2 = 61
-const rcut = 3.5
 
 # Calculate b ##################################################################
 
@@ -103,26 +102,30 @@ function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     ## Calculate b
     lmp = LMP(["-screen","none"]) 
     read_data_str = string("read_data ", path)
+
+    command(lmp, "log none")
     command(lmp, "units metal")
     command(lmp, "boundary p p p")
     command(lmp, "atom_style atomic")
     command(lmp, "atom_modify map array")
     command(lmp, read_data_str)
-    command(lmp, "pair_style snap")
-    command(lmp, "pair_coeff * * GaN.snapcoeff GaN.snapparam Ga N")
+    command(lmp, "pair_style zero $rcut")
+    command(lmp, "pair_coeff * *")
     command(lmp, "compute PE all pe")
     command(lmp, "compute S all pressure thermo_temp")
-    command(lmp, "compute SNA all sna/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-    command(lmp, "compute SNAD all snad/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-    command(lmp, "compute SNAV all snav/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+    command(lmp, "compute SNA all sna/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+    command(lmp, "compute SNAD all snad/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+    command(lmp, "compute SNAV all snav/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
     command(lmp, "thermo_style custom pe")
-    command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
+    #command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
     command(lmp, "run 0")
     nlocal = extract_global(lmp, "nlocal")
     types = extract_atom(lmp, "type", LAMMPS.API.LAMMPS_INT)
     ids = extract_atom(lmp, "id", LAMMPS.API.LAMMPS_INT)
     bs = extract_compute(lmp, "SNA", LAMMPS.API.LMP_STYLE_ATOM,
                                      LAMMPS.API.LMP_TYPE_ARRAY)
+    
+
     E_tot_acc = 0.0
     for n in 1:N1
         E_atom_acc = β[1]
