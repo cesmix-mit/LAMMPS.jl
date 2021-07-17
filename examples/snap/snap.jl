@@ -10,7 +10,7 @@ using LAMMPS
 ###
 
 const ntypes = 2
-const twojmax = 5
+const twojmax = 6
 
 const J = twojmax/2.
 const ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3.) + 1)
@@ -29,13 +29,13 @@ A = LMP(["-screen","none"]) do lmp
         command(lmp, "atom_style atomic")
         command(lmp, "atom_modify map array")
         command(lmp, read_data_str)
-        command(lmp, "pair_style snap")
-        command(lmp, "pair_coeff * * GaN.snapcoeff GaN.snapparam Ga N")
+        command(lmp, "pair_style zero 3.5")
+        command(lmp, "pair_coeff * *")
         command(lmp, "compute PE all pe")
         command(lmp, "compute S all pressure thermo_temp")
-        command(lmp, "compute SNA all sna/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-        command(lmp, "compute SNAD all snad/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-        command(lmp, "compute SNAV all snav/atom 3.5 0.99363 6 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNA all sna/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNAD all snad/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNAV all snav/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
         command(lmp, "thermo_style custom pe")
         command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
         command(lmp, "run 0")
