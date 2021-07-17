@@ -1,2 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+GalacticOptim = "a75be94c-b780-496d-a8a9-0878b188d577"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"

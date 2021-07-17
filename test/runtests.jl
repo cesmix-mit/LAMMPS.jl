@@ -11,5 +11,3 @@ LMP(["-screen", "none"]) do lmp
 
     @test_throws ErrorException command(lmp, "nonsense")
 end
-
-include("examples.jl")
