@@ -12,7 +12,7 @@
 # pkg"add LAMMPS GalacticOptim Optim"
 # ```
 #
-# We start off by importing `LAMMPS`.
+# We start off by importing the necessary packages
 
 using LAMMPS
 using LinearAlgebra: norm, pinv
@@ -20,13 +20,11 @@ using GalacticOptim, Optim
 using Printf
 
 ## Calculate A using `snap.jl`
-const N1 = 96
-const N2 = 96
-const N = N1 + N2
-const M1 = 48
-const M2 = 61
-
 include(joinpath(dirname(pathof(LAMMPS)), "..", "examples", "snap.jl"))
+
+const N = N1 + N2
+const M1 = M
+const M2 = 61
 
 ## Calculate b
 
@@ -97,8 +95,7 @@ end
 
 b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
 
-
-## Calculate β
+# ## Calculate β
 
 ## β = A \ b
 
@@ -108,35 +105,12 @@ prob = OptimizationProblem(cost_function, β0)
 β = solve(prob, NelderMead(), maxiters=2000)
 
 
-## Check results
+# ## Check results
 
 function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     ## Calculate b
     lmp = LMP(["-screen","none"])
-    read_data_str = string("read_data ", path)
-
-    command(lmp, "log none")
-    command(lmp, "units metal")
-    command(lmp, "boundary p p p")
-    command(lmp, "atom_style atomic")
-    command(lmp, "atom_modify map array")
-    command(lmp, read_data_str)
-    command(lmp, "pair_style zero $rcut")
-    command(lmp, "pair_coeff * *")
-    command(lmp, "compute PE all pe")
-    command(lmp, "compute S all pressure thermo_temp")
-    command(lmp, "compute SNA all sna/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-    command(lmp, "compute SNAD all snad/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-    command(lmp, "compute SNAV all snav/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-    command(lmp, "thermo_style custom pe")
-    ## command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
-    command(lmp, "run 0")
-    nlocal = extract_global(lmp, "nlocal")
-    types = extract_atom(lmp, "type", LAMMPS.API.LAMMPS_INT)
-    ids = extract_atom(lmp, "id", LAMMPS.API.LAMMPS_INT)
-    bs = extract_compute(lmp, "SNA", LAMMPS.API.LMP_STYLE_ATOM,
-                                     LAMMPS.API.LMP_TYPE_ARRAY)
-
+    bs = run_snap(lmp, path, rcut, twojmax)
 
     E_tot_acc = 0.0
     for n in 1:N1
