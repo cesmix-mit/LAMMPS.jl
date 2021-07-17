@@ -9,6 +9,7 @@ using LAMMPS
 # b - energies, forces, stresses
 ###
 
+const rcut = 3.5
 const ntypes = 2
 const twojmax = 6
 
@@ -24,20 +25,21 @@ A = LMP(["-screen","none"]) do lmp
     for m in 1:M
         read_data_str = "read_data " * joinpath("data", string(m), "DATA")
 
+        command(lmp, "log none")
         command(lmp, "units metal")
         command(lmp, "boundary p p p")
         command(lmp, "atom_style atomic")
         command(lmp, "atom_modify map array")
         command(lmp, read_data_str)
-        command(lmp, "pair_style zero 3.5")
+        command(lmp, "pair_style zero $rcut")
         command(lmp, "pair_coeff * *")
         command(lmp, "compute PE all pe")
         command(lmp, "compute S all pressure thermo_temp")
-        command(lmp, "compute SNA all sna/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-        command(lmp, "compute SNAD all snad/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
-        command(lmp, "compute SNAV all snav/atom 3.5 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNA all sna/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNAD all snad/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
+        command(lmp, "compute SNAV all snav/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1")
         command(lmp, "thermo_style custom pe")
-        command(lmp, "dump 2 all custom 100 dump.forces fx fy fz")
+        #command(lmp, "dump 2 all custom 100 dump.forces fx fy fz") # No need to dump the forces
         command(lmp, "run 0")
 
         nlocal = extract_global(lmp, "nlocal")
