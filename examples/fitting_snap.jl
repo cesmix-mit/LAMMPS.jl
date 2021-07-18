@@ -169,8 +169,8 @@ b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
 
 # ## Calculate the optimal solution
 
+# The optimal solution $\widehat{\mathbf{b}}$ is, thus:
 # ```math
-# The optimal solution \widehat{\mathbf{b}} is, thus:
 # \begin{equation*}
 #     \widehat{\mathbf{b}} = \mathrm{argmin}_{\mathbf{\overline{b}}} ||\mathbf{A \overline{b} -y}||^2 = \mathbf{A^{-1} y}
 # \end{equation*}
