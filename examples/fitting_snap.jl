@@ -37,8 +37,8 @@ using Printf
 # configurations. The matrix formulation for this system ``\mathbf{A \cdot \overline{b}=y}``
 # defined in the following equation (see 10.1016/j.jcp.2014.12.018):
 
-#```math
-#\begin{equation}
+# ```math
+# \begin{equation}
 #    \label{eq:matrix}
 #    \mathbf{A}=
 #    \begin{pmatrix}
@@ -61,8 +61,8 @@ using Printf
 #                                    W_{\rm qm}^{l,\alpha,\beta} - W_{\rm ref}^{l,\alpha,\beta} \\
 #                                    \vdots \\
 #                                 \end{pmatrix}
-#\end{equation}
-#```
+# \end{equation}
+# ```
 
 # The indexes ``\alpha, \beta = 1,2,3`` depict the ``x``, ``y`` and ``z``
 # spatial component, ``j`` is an individual atom, and ``l`` a particular configuration.
@@ -75,6 +75,7 @@ using Printf
 # This example only fits the energy, thus, the first block of the matrix A.
 
 include(joinpath(dirname(pathof(LAMMPS)), "..", "examples", "snap.jl"))
+A
 
 # # Calculate b
 
@@ -120,18 +121,18 @@ function read_atomic_conf(m, N)
     return rs
 end
 
-#```math
-#E = \sum_{i \neq j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  where  \\
+# ```math
+# E = \sum_{i \neq j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  where  \\
 #
-#E_{GaN}(r_{i,j}) = 
-#\left\{
+# E_{GaN}(r_{i,j}) =
+# \left\{
 #    \begin{array}{ll}
 #        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{Ga,Ga}, \sigma_{Ga,Ga})  & \mbox{if both particles are Ga} \\
 #        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{N,N}, \sigma_{N,N})  & \mbox{if both particles are N} \\
 #        E_{C}(r_{i,j}) + E_{BM}(r_{i,j}, A_{Ga,N}, \rho_{Ga,N})  & \mbox{if one particle is Ga and the other is N}\\
 #    \end{array}
-#\right.
-#```
+# \right.
+# ```
 
 function calc_tot_energy(rcut, rs, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
     E_tot_acc = 0.0
@@ -168,12 +169,12 @@ b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
 
 # ## Calculate the optimal solution
 
-#```math
-#The optimal solution \widehat{\mathbf{b}} is, thus:
-#\begin{equation*}
-#    \widehat{\mathbf{b}} = \mathrm{argmin}_{\mathbf{\overline{b}}} ||\mathbf{A \overline{b} -y}||^2 = \mathbf{A^{-1} y} 
-#\end{equation*}
-#```
+# The optimal solution $\widehat{\mathbf{b}}$ is, thus:
+# ```math
+# \begin{equation*}
+#     \widehat{\mathbf{b}} = \mathrm{argmin}_{\mathbf{\overline{b}}} ||\mathbf{A \overline{b} -y}||^2 = \mathbf{A^{-1} y}
+# \end{equation*}
+# ```
 
 β = A \ b
 
@@ -184,10 +185,10 @@ b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
 # and a set of coefficients. ``K`` components of the bispectrum are considered
 # so that ``\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}`` for each atom ``i``, whose
 # SNAP energy is computed as follows:
-#```math
+# ```math
 #    E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \overline{\beta} \cdot \mathbf{B}^i
-#```
-#where $\alpha_i$ depends on the atom type.
+# ```
+# where $\alpha_i$ depends on the atom type.
 
 function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     ## Calculate b
