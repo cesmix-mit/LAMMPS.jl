@@ -75,7 +75,7 @@ using Printf
 # This example only fits the energy, thus, the first block of the matrix A.
 
 include(joinpath(dirname(pathof(LAMMPS)), "..", "examples", "snap.jl"))
-@show A;
+A
 
 # # Calculate b
 
