@@ -1,18 +1,17 @@
 # # Fitting SNAP using GaN data
 #
-# This example:
-#    - Uses the atomic positions in the folder `DATA`
+# This example: 
+#    - Uses the atomic positions in the folder `example_GaN_data`
 #    - Generates surrogate DFT data based on the GaN model presented in `10.1088/1361-648x/ab6cbe`
 #    - Uses `snap.jl` and 80% of the GaN data to create the matrix A. The matrix is generated only with the energy block.
-#    - Uses 80% of the GaN data to create the vector b. The reference energy (``E_{ref}``) is assumed to be zero.
-#    - Uses backslash to fit the parameters β, thus, solves A β = b
-#    - Uses 20% of the GaN data and the bispectrum components provided by `snap.jl` to validate the fitting.
-#    - The relative error computed during the validation is < ~5%.
-# ToDo's:
+#    - Uses 80% of the GaN data to create the vector b. The reference energy (``E_{\rm ref}``) is assumed to be zero.
+#    - Uses backslash to fit the parameters ``\boldsymbol{\beta}``, thus, solves ``\mathbf{A \cdot \boldsymbol{\beta}=y}``
+#    - Uses 20% of the GaN data and the bispectrum components provided by `snap.jl`and the fitted parameters ``\boldsymbol{\beta}`` to validate the fitting.
+#    - The error computed during the validation is < ~5%.
+# TODO:
 #    - Check if the GaN model is correct.
-#    - Calculate reference energy (``E_{ref}``).
+#    - Calculate reference energy (``E_{\rm ref}``).
 #    - Check ill-conditioned system.
-#    - Check the consistency of the notation.
 
 #
 # ## Install and import dependencies
@@ -32,42 +31,46 @@ using Printf
 
 # ##  Estimation of the SNAP coefficients
 #
-# The choice of the coefficients ``\mathbf{\overline{b}}=(\beta_0, \overline{\beta})``
+# The choice of the coefficients ``\boldsymbol{\beta}=(\beta_0^1, \tilde{\beta}^1, \dots, \beta_0^l, \tilde{\beta}^l)``
 # is based on a system of linear equations which considers a large number of atomic
-# configurations. The matrix formulation for this system ``\mathbf{A \cdot \overline{b}=y}``
-# defined in the following equation (see 10.1016/j.jcp.2014.12.018):
+# configurations and ``l`` atom types. The matrix formulation for this system ``\mathbf{A \cdot \boldsymbol{\beta}=y}``
+# is defined in the following equations (see 10.1016/j.jcp.2014.12.018):
 
 # ```math
-# \begin{equation}
-#    \label{eq:matrix}
+# \begin{equation*}
 #    \mathbf{A}=
 #    \begin{pmatrix}
-#        \vdots &  &  & \\
-#        N_l & \sum_{i=1}^{N_l} B_1^i & \dots & \sum_{i=1}^{N_l} B_k^i \\
-#        \vdots &  &  & \\
-#        0 & -\sum_{i=1}^{N_l} \frac{\partial B_1^i}{\partial r_j^{\alpha}} & \dots & -\sum_{i=1}^{N_l} \frac{\partial B_k^i}{\partial r_j^{\alpha}} \\
-#        \vdots &  &  & \\
-#        0 & - \sum_{j=1}^{N_l} r^j_{\alpha} \sum_{i=1}^{N_l} \frac{\partial B_1^i}{\partial r_j^{\beta}} & \dots & - \sum_{j=1}^{N_1} r^j_{\alpha} \sum_{i=1}^{N_1} \frac{\partial B_k^i}{\partial r_j^{\beta}} \\
-#        \vdots &  &  & \\
-#    \end{pmatrix}  \begin{pmatrix}
-#                    \beta_0 \\
-#                    \overline{\beta}
-#                \end{pmatrix} = \begin{pmatrix}
-#                                    \vdots \\
-#                                    E^l_{\rm qm} -  E^l_{\rm ref} \\
-#                                    \vdots \\\\
-#                                    F^{l,j,\alpha}_{\rm qm} - F^{l,j,\alpha}_{\rm ref} \\
-#                                    \vdots \\
-#                                    W_{\rm qm}^{l,\alpha,\beta} - W_{\rm ref}^{l,\alpha,\beta} \\
-#                                    \vdots \\
-#                                 \end{pmatrix}
-# \end{equation}
+#        \vdots &  &  & & & & & & \\
+#        N_{s_1} & \sum_{i=1}^{N_{s_1}} B_1^i & \dots & \sum_{i=1}^{N_{s_1}} B_k^i  & \dots & N_{s_L} & \sum_{i=1}^{N_{s_L}} B_1^i & \dots & \sum_{i=1}^{N_{s_L}} B_k^i\\
+#        \vdots &  &  & & & & & & \\
+#        0 & -\sum_{i=1}^{N_{s_1}} \frac{\partial B_1^i}{\partial r_j^{\alpha}} & \dots & -\sum_{i=1}^{N_{s_1}} \frac{\partial B_k^i}{\partial r_j^{\alpha}} & \dots &  0 & -\sum_{i=1}^{N_{s_l}} \frac{\partial B_1^i}{\partial r_j^{\alpha}} & \dots & -\sum_{i=1}^{N_{s_l}} \frac{\partial B_k^i}{\partial r_j^{\alpha}} \\
+#        \vdots &  &  & & & & & & \\
+#        0 & - \sum_{j=1}^{N_{s_1}} r^j_{\alpha} \sum_{i=1}^{N_{s_1}} \frac{\partial B_1^i}{\partial r_j^{\beta}} & \dots & - \sum_{j=1}^{N_{s_1}} r^j_{\alpha} \sum_{i=1}^{N_{s_1}} \frac{\partial B_k^i}{\partial r_j^{\beta}} & \dots & 0 & - \sum_{j=1}^{N_{s_l}} r^j_{\alpha} \sum_{i=1}^{N_{s_l}} \frac{\partial B_1^i}{\partial r_j^{\beta}} & \dots & - \sum_{j=1}^{N_{s_l}} r^j_{\alpha} \sum_{i=1}^{N_{s_l}} \frac{\partial B_k^i}{\partial r_j^{\beta}}\\
+#        \vdots &  &  & & & & & & \\
+#    \end{pmatrix}
+# \end{equation*}
 # ```
 
 # The indexes ``\alpha, \beta = 1,2,3`` depict the ``x``, ``y`` and ``z``
-# spatial component, ``j`` is an individual atom, and ``l`` a particular configuration.
-# All atoms in each configuration are considered. The number of atoms in the configuration
-# ``l`` is ``N_l``.
+# spatial component, ``j`` is an individual atom, and ``s`` a particular configuration.
+# All atoms in each configuration are considered. The number of atoms of type $m$ in the configuration
+# ``s`` is ``N_{s_m}``.
+
+# The RHS of the linear system is computed as:
+
+# ```math
+# \begin{equation*}
+#  \mathbf{y}=  \begin{pmatrix}
+#    \vdots \\
+#   E^s_{\rm qm} -  E^s_{\rm ref} \\
+#   \vdots \\\\
+#   F^{s,j,\alpha}_{\rm qm} - F^{s,j,\alpha}_{\rm ref} \\
+#   \vdots \\
+#   W_{\rm qm}^{s,\alpha,\beta} - W_{\rm ref}^{s,\alpha,\beta} \\
+#   \vdots \\        
+#    \end{pmatrix}
+# \end{equation*}
+# ```
 
 
 # # Calculate ``A`` using `snap.jl`
@@ -77,10 +80,25 @@ using Printf
 include(joinpath(dirname(pathof(LAMMPS)), "..", "examples", "snap.jl"))
 A
 
-# # Calculate b
+# # Calculate ``y``
 
 # A molecular mechanics model for the interaction of gallium and nitride is used
-# to generate surrogate DFT data. DOI: 10.1088/1361-648x/ab6cbe.
+# to generate surrogate DFT data (see 10.1088/1361-648x/ab6cbe).
+# The total potential energy is computed for each configuration
+
+# ```math
+# E = \sum_{i \lt j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  \text{ where } \\
+#
+# E_{GaN}(r_{i,j}) =
+# \left\{
+#    \begin{array}{ll}
+#        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{Ga,Ga}, \sigma_{Ga,Ga})  & \mbox{if both atoms are Ga} \\
+#        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{N,N}, \sigma_{N,N})  & \mbox{if both atoms are N} \\
+#        E_{C}(r_{i,j}) + E_{BM}(r_{i,j}, A_{Ga,N}, \rho_{Ga,N})  & \mbox{if one atom is Ga and the other is N}\\
+#    \end{array}
+# \right.
+# ```
+
 # Note: this is a work in progress, this model should be checked.
 
 const N = N1 + N2
@@ -96,13 +114,10 @@ const ρ_Ga_N = 0.435
 const q_Ga = 3.0
 const q_N = -3.0
 const ε0 = 55.26349406 # e2⋅GeV−1⋅fm−1 ToDo: check this
-const E_ref = 0.
+const E_ref = zeros(M1)
 E_LJ(r, ε = 1.0, σ = 1.0) = 4.0 * ε * ((σ / norm(r))^12 - (σ / norm(r))^6)
 E_BM(r, A = 1.0, ρ = 1.0) = A * exp(-norm(r) / ρ)
 E_C(r) = q_Ga * q_N / (4.0 * π * ε0 * norm(r))
-
-
-# Calculate total potential energy for each configuration
 
 function read_atomic_conf(m, N)
     rs = []
@@ -120,19 +135,6 @@ function read_atomic_conf(m, N)
     end
     return rs
 end
-
-# ```math
-# E = \sum_{i \neq j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  where  \\
-#
-# E_{GaN}(r_{i,j}) =
-# \left\{
-#    \begin{array}{ll}
-#        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{Ga,Ga}, \sigma_{Ga,Ga})  & \mbox{if both particles are Ga} \\
-#        E_{C}(r_{i,j}) + E_{LJ}(r_{i,j}, \epsilon_{N,N}, \sigma_{N,N})  & \mbox{if both particles are N} \\
-#        E_{C}(r_{i,j}) + E_{BM}(r_{i,j}, A_{Ga,N}, \rho_{Ga,N})  & \mbox{if one particle is Ga and the other is N}\\
-#    \end{array}
-# \right.
-# ```
 
 function calc_tot_energy(rcut, rs, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
     E_tot_acc = 0.0
@@ -153,30 +155,30 @@ function calc_tot_energy(rcut, rs, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N
     return E_tot_acc
 end
 
-# Calculate the vector ``b`` using the DFT data and ``E_{ref}``
+# Vector ``y`` is calculated using the DFT data and ``E_{\rm ref}``
 
-function calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
-    b = zeros(M1)
+function calc_y(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N, E_ref)
+    y = zeros(M1)
     for m = 1:M1
         rs = read_atomic_conf(m, N)
-        b[m] = calc_tot_energy(rcut, rs, N, ε_Ga_Ga, σ_Ga_Ga,
-                               ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
+        y[m] = calc_tot_energy(rcut, rs, N, ε_Ga_Ga, σ_Ga_Ga,
+                               ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N) - E_ref[m]
     end
-    return b
+    return y
 end
 
-b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
+y = calc_y(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N, E_ref)
 
 # ## Calculate the optimal solution
 
-# The optimal solution $\widehat{\mathbf{b}}$ is, thus:
+# The optimal solution $\widehat{\mathbf{\beta}}$ is, thus:
 # ```math
 # \begin{equation*}
-#     \widehat{\mathbf{b}} = \mathrm{argmin}_{\mathbf{\overline{b}}} ||\mathbf{A \overline{b} -y}||^2 = \mathbf{A^{-1} y}
+#     \widehat{\mathbf{\beta}} = \mathrm{argmin}_{\mathbf{\beta}} ||\mathbf{A \cdot \boldsymbol{\beta} - y}||^2 = \mathbf{A^{-1} \cdot y}
 # \end{equation*}
 # ```
 
-β = A \ b
+β = A \ y
 
 # ## Check results
 
@@ -186,12 +188,12 @@ b = calc_b(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N)
 # so that ``\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}`` for each atom ``i``, whose
 # SNAP energy is computed as follows:
 # ```math
-#    E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \overline{\beta} \cdot \mathbf{B}^i
+#    E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \boldsymbol{\tilde{\beta}}^{\alpha_i} \cdot \mathbf{B}^i
 # ```
 # where $\alpha_i$ depends on the atom type.
 
 function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
-    ## Calculate b
+    ## Calculate y
     lmp = LMP(["-screen","none"])
     bs = run_snap(lmp, path, rcut, twojmax)
 
@@ -216,6 +218,12 @@ function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     return E_tot_acc
 end
 
+
+# Comparison between the potential energy calculated based on the DFT data, and
+# the SNAP potential energy calculated based on the bispectrum components
+# provided by ``snap.jl`` and the fitted coefficients ``\mathbf{\beta}``.
+
+
 @printf("Potential Energy, Fitted Potential Energy, Error (%%)\n")
 for m = M1+1:M2
     path = joinpath(DATA, string(m), "DATA")
@@ -225,3 +233,5 @@ for m = M1+1:M2
     @printf("%0.2f, %0.2f, %0.2f\n", E_tot, E_tot_fit,
             abs(E_tot - E_tot_fit) / E_tot * 100.)
 end
+
+
