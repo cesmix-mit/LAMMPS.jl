@@ -5,7 +5,8 @@
 Manifest.toml
 
 # generated docs
-docs/build
+docs/build/
+docs/src/generated/
 
 # LAMMPS artifacts
 log.lammps
