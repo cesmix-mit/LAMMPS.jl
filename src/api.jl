@@ -1,6 +1,7 @@
 module API
 
 using CEnum
+using MPI
 
 import LAMMPS_jll: liblammps
 
@@ -35,6 +36,15 @@ end
     LMP_SIZE_COLS = 5
 end
 
+
+function lammps_open(argc, argv, comm, ptr)
+    ccall(
+        (:lammps_open, liblammps),
+        Cvoid,
+        (Cint, Ref{Ptr{Cchar}}, MPI.Comm, Ptr{LAMMPSPtr}),
+        argc, argv, comm, ptr
+    )
+end
 
 function lammps_open_no_mpi(argc, argv, ptr)
     ccall((:lammps_open_no_mpi, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, Ptr{LAMMPSPtr}), argc, argv, ptr)

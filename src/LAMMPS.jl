@@ -7,24 +7,20 @@ export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
 
 
 mutable struct LMP
+    args::Vector{String}
+    comm::Union{MPI.Comm, Nothing}
     handle::LAMMPSPtr
 
-    function LMP(args::Vector{String}=String[])
-        if isempty(args)
-            argsv = C_NULL
-        else
-            args = copy(args)
-            pushfirst!(args, "lammps")
-            argsv = map(pointer, args)
-        end
+    function LMP(args::Vector{String}=String[], comm = MPI.COMM_WORLD)
+        ptrref = Ref{LAMMPSPtr}(C_NULL)
 
-        GC.@preserve args begin
-            handle = API.lammps_open_no_mpi(length(args), argsv, C_NULL)
-        end
+        API.lammps_open(length(args), args, comm, ptrref)
 
-        this = new(handle)
+        this = new(args, comm, ptrref[])
         finalizer(this) do this
-            API.lammps_close(this)
+            if is_initialized(this)
+                API.lammps_close(this)
+            end
         end
         return this
     end
@@ -40,6 +36,14 @@ function version(lmp::LMP)
     API.lammps_version(lmp)
 end
 
+is_initialized(lmp::LMP) = lmp.handle !== C_NULL
+
+function check_init(lmp::LMP)
+    if !is_initialized(lmp)g
+        error("LAMMPS instance not set")
+    end
+end
+
 function check(lmp::LMP)
     err = API.lammps_has_error(lmp)
     if err != 0
@@ -51,6 +55,7 @@ function check(lmp::LMP)
 end
 
 function command(lmp::LMP, cmd)
+    check_init(lmp)
     ptr = API.lammps_command(lmp, cmd)
     ptr == C_NULL && check(lmp)
     nothing
@@ -65,6 +70,7 @@ Will be precise up to 53-bit signed integer due to the
 underlying `lammps_get_natoms` returning a Float64.
 """
 function get_natoms(lmp::LMP)
+    check_init(lmp)
     Int64(API.lammps_get_natoms(lmp))
 end
 
@@ -90,6 +96,8 @@ function dtype2type(dtype::API._LMP_DATATYPE_CONST)
 end
 
 function extract_global(lmp::LMP, name, dtype=nothing)
+    check_init(lmp)
+
     if dtype === nothing
         dtype = API.lammps_extract_global_datatype(lmp, name)
     end
@@ -129,10 +137,14 @@ end
 """
     extract_atom(lmp, name, dtype=nothing, )
 """
-function extract_atom(lmp::LMP, name,
-                      dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
-                      axes1=nothing, axes2=nothing)
-
+function extract_atom(
+    lmp::LMP,
+    name,
+    dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
+    axes1 = nothing,
+    axes2 = nothing
+)
+    check_init(lmp)
 
     if dtype === nothing
         dtype = API.lammps_extract_atom_datatype(lmp, name)
@@ -172,6 +184,8 @@ function extract_atom(lmp::LMP, name,
 end
 
 function unsafe_extract_compute(lmp::LMP, name, style, type)
+    check_init(lmp)
+
     if type == API.LMP_TYPE_SCALAR
         if style == API.LMP_STYLE_GLOBAL
             dtype = Ptr{Float64}
@@ -237,6 +251,8 @@ function extract_compute(lmp::LMP, name, style, type)
 end
 
 function gather_atoms(lmp::LMP, name, T, count)
+    check_init(lmp)
+
     if T === Int32
         dtype = 0
     elseif T === Float64
@@ -250,5 +266,12 @@ function gather_atoms(lmp::LMP, name, T, count)
     check(lmp)
     return data
 end
+
+function __init__()
+    if !MPI.Initialized()
+        MPI.Init()
+    end
+end
+
 
 end # module
