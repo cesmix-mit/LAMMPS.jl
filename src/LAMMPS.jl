@@ -5,8 +5,9 @@ include("api.jl")
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        gather_atoms
 
+
 mutable struct LMP
-    handle::Ptr{Cvoid}
+    handle::LAMMPSPtr
 
     function LMP(args::Vector{String}=String[])
         if isempty(args)
