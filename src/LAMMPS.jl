@@ -41,7 +41,7 @@ end
 is_initialized(lmp::LMP) = lmp.handle !== C_NULL
 
 function check_init(lmp::LMP)
-    if !is_initialized(lmp)g
+    if !is_initialized(lmp)
         error("LAMMPS instance not set")
     end
 end
