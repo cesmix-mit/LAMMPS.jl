@@ -1,6 +1,7 @@
 module API
 
 using CEnum
+import MPI: MPI_Comm
 
 import LAMMPS_jll
 import LAMMPS_jll: liblammps
@@ -28,6 +29,10 @@ end
     LMP_SIZE_VECTOR = 3
     LMP_SIZE_ROWS = 4
     LMP_SIZE_COLS = 5
+end
+
+function lammps_open(argc, argv, comm, ptr)
+    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, MPI_Comm, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
 end
 
 function lammps_open_no_mpi(argc, argv, ptr)
@@ -89,7 +94,7 @@ function lammps_memory_usage(handle, meminfo)
 end
 
 function lammps_get_mpi_comm(handle)
-    ccall((:lammps_get_mpi_comm, liblammps), Cint, (Ptr{Cvoid},), handle)
+    ccall((:lammps_get_mpi_comm, liblammps), MPI_Comm, (Ptr{Cvoid},), handle)
 end
 
 function lammps_extract_setting(handle, keyword)
