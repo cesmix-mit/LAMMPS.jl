@@ -4,6 +4,7 @@ using CEnum
 
 import LAMMPS_jll
 import LAMMPS_jll: liblammps
+import MPI: MPI_Comm
 
 @cenum _LMP_DATATYPE_CONST::UInt32 begin
     LAMMPS_INT = 0
@@ -28,6 +29,10 @@ end
     LMP_SIZE_VECTOR = 3
     LMP_SIZE_ROWS = 4
     LMP_SIZE_COLS = 5
+end
+
+function lammps_open(argc, argv, comm, ptr)
+    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, MPI_Comm, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
 end
 
 function lammps_open_no_mpi(argc, argv, ptr)
