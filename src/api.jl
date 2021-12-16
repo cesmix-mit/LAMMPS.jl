@@ -2,6 +2,7 @@ module API
 
 using CEnum
 
+import LAMMPS_jll
 import LAMMPS_jll: liblammps
 
 @cenum _LMP_DATATYPE_CONST::UInt32 begin
