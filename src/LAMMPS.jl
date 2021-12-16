@@ -62,7 +62,7 @@ mutable struct LMP
         GC.@preserve args begin
             if comm !== nothing
                 if !MPI.Initialized()
-                    error("MPI has not been initialized. Make sure to first call `MPI.Init()`"
+                    error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
                 end
                 handle = API.lammps_open(length(args), argsv, comm, C_NULL)
             else
