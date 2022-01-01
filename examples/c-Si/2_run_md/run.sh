@@ -3,4 +3,4 @@ if [ -d "data" ]
   then 
     rm -r data
 fi
-python gen_fitting_data.py
+python gen_fitting_data_exyz.py

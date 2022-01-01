@@ -1,28 +1,40 @@
 #echo screen
  
-variable nsample equal 10
-variable nsteps equal 2000
+# Variables
+variable nsample equal 10 # Sample data every this many timesteps
+variable nsteps equal 2000 # Number of timesteps
 
+# Settings
 boundary p p p
 units metal
 atom_style atomic
 atom_modify map array
 
+# Read structure
 read_data DATA
 
+# Neighbor settings
 neighbor    1.0 bin
 #neigh_modify once yes
 
-####################################################################################################
-
+# Pair style
 pair_style edip
 pair_coeff * * Si.edip Si
 
+# Computes
+compute S all pressure NULL virial # Stress tensor without kinetic energy component (only the virial)
+
 # Initialize velocity, thermo settings, timestep and ensemble
 velocity	 all create 200.0 20101 rot yes mom yes
+
+# Output quantities during simulation with thermo command.
+# In LAMMPS, the stress tensor is ordered like xx yy zz xy xz yz.
+# We want xx yy zz yz xz xy.
 thermo  	 ${nsample}
-#thermo_style custom step etotal pe ke temp
-thermo_style custom step etotal pe temp
+#thermo_style custom step pe temp c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] # xx yy zz xy xz yz
+thermo_style custom step pe temp c_S[1] c_S[2] c_S[3] c_S[6] c_S[5] c_S[4] # xx yy zz yz xz xy
+
+# Declare integration scheme and timestep
 fix 1 all nve
 #fix 1 all nvt temp 1000.0 1000.0 1.0
 #fix 2 all temp/rescale 1000 1000.0 1000.0 1.0 1.0
@@ -36,6 +48,7 @@ timestep  0.0005
 dump 1 all xyz ${nsample} dump.xyz	
 dump_modify 1 pbc no
 dump 2 all custom ${nsample} dump.positions_and_forces id type x y z fx fy fz 
+#dump 3 all custom ${nsample} dump.stress c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6]
 #dump 3 all custom 1000 dump.positions id type x y z
 #dump 3 all custom 1 dump.vel id vx vy vz
 #dump_modify 3 format float %20.15g scale yes
