@@ -1,0 +1,146 @@
+#echo screen
+ 
+newton on
+boundary	 	 p p p
+units	 	 	 metal
+atom_style	 	 atomic
+atom_modify sort 1 1000.0
+
+read_data DATA
+
+# Input variables
+variable nthermo equal 1000 # for production run
+variable modeheatflux_setting equal 0
+variable nsteps equal 20000 # Number of timesteps in production run.
+variable temperature equal 1200.0 # Desired simulation temperature.
+variable T_hot equal 4500.0 # hot temperature
+variable nsteps_nvt equal 10000 # Number of timesteps in NVT equilibration.
+variable nsteps_nve equal 0 # Number of timesteps in NVE equilibration.
+
+# Post process variables
+variable nsteps_total equal ${nsteps}+${nsteps_nvt}+${nsteps_nve} # Combined total timesteps of all runs, used for compute modeHeatflux.
+#variable temperature_velocity equal 2.0*${temperature} # velocities are twice the temperature because of equipartition.
+variable temperature_velocity equal ${temperature}+${temperature}
+
+# Define regions and groups
+
+# Neighborlist commands
+neighbor    1.0 bin
+#neigh_modify once yes
+
+# Potential
+#pair_style tersoff2  
+#pair_coeff * * Si.tersoff Si Si2
+pair_style sw
+pair_coeff * * Ge.sw Ge
+
+# Computes
+#compute dsp all mode/atom
+
+compute      myKE all ke/atom
+compute      myPE all pe/atom
+compute      myStress all stress/atom NULL virial
+
+# Compute mode with option "3" to compute the mode action.
+#compute modeCompute all mode 3
+#compute modeCompute all mode 0
+#compute modeFv all mode/fv
+
+# Use this heat flux if you want the harmonic portion.
+#compute modeHeatflux all mode/heatflux ${nthermo} ${nsteps_total} ${modeheatflux_setting}
+
+# Use this heat flux if you want the full flux
+compute myFlux all heat/flux myKE myPE myStress
+
+# Initialize velocity, thermo settings, timestep and ensemble
+velocity	 all create ${temperature_velocity} 10101 rot yes mom yes
+thermo 1000
+timestep 0.0005
+
+# Heat to melting
+thermo_style custom step etotal pe temp press vol
+#fix 1 all npt temp ${temperature} ${T_hot} 10.0 iso 0.0 0.0 10.0
+fix 1 all nvt temp ${temperature} ${T_hot} 10.0 # First two numbers are the beginning and final temperature.
+dump 1 all xyz 2000 dump_melt.xyz
+run 2000000
+unfix 1
+undump 1
+
+# Run at hot temperature
+#fix 1 all npt temp ${T_hot} ${T_hot} 10.0 iso 0.0 0.0 10.0
+fix 1 all nvt temp ${T_hot} ${T_hot} 10.0 # First two numbers are the beginning and final temperature.
+dump 1 all xyz 2000 dump_hot.xyz
+run 2000000
+unfix 1
+undump 1
+
+# Quench to 600 K
+#fix 1 all npt temp ${T_hot} 1000 10.0 iso 0.0 0.0 10.0
+fix 1 all nvt temp ${T_hot} 600 10.0
+dump 1 all xyz 20000 dump_quench_600.xyz
+run 20000000
+unfix 1
+undump 1
+
+# Equilibrate at 600 K
+fix 1 all nvt temp 600 600 10.0
+dump 1 all xyz 20000 dump_600K.xyz
+run 20000000
+unfix 1
+undump 1
+
+# Cool completely
+fix 1 all nvt temp 600 0.01 10.0
+dump 1 all xyz 20000 dump_cool.xyz
+run 10000000
+unfix 1 
+undump 1
+
+# Equilibrate in NVE
+#fix 1 all nve 
+#run ${nsteps_nve}
+#unfix 1
+
+thermo ${nthermo} # New thermo setting for compute mode heat flux
+
+# Harmonic flux
+#thermo_style custom step etotal c_modeHeatflux[1] #ke press vol temp
+
+# Full flux
+#thermo_style custom step etotal temp c_myFlux[1]
+
+# Full flux and harmonic flux
+#thermo_style custom step etotal temp c_myFlux[1] c_modeHeatflux[1] c_modeCompute
+
+# Mode action with PAIRS file
+#thermo_style custom step etotal temp c_modeCompute
+
+#thermo_modify format line "%ld %.10e %.10e %.10e %.10e %e %e %e"
+
+
+fix 1 all nve
+#fix 1 all nvt temp 10000.0 1000.0 1.0
+#fix 2 all temp/rescale 1000 1000.0 1000.0 1.0 1.0
+#timestep  0.0005
+
+#fix 2 all momentum 1 linear 1 1 1 rescale
+
+# Run MD	 	 	 	 	  
+dump 1 all xyz 2000 dump.xyz	
+#dump_modify 1 format line "%ld %.9f %.9f %.9f"	 
+#dump 2 all custom 100 dump.velocities vx vy vz
+#dump 3 all custom 100 dump.force fx fy fz
+#dump 3 all custom 1 dump.coords type xs ys zs
+#dump_modify 3 format float %20.15g scale yes
+#dump_modify 2 sort id
+#dump 4 all custom 100 dump.disp id type c_dsp[3]
+#dump_modify 4 sort id
+
+#fix test all mode -0.1 0.1 0.1 # Initialize mode temperatures
+
+run ${nsteps}
+#run 2000
+unfix 1
+#undump 1
+
+write_data DATA_EQUILIBRATED
