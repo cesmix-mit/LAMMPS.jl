@@ -12,4 +12,5 @@ Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 [compat]
 CEnum = "0.4"
 LAMMPS_jll = "1.0, 2.2"
+Preferences = "1"
 julia = "1.6"
