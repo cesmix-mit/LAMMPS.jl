@@ -1,5 +1,5 @@
 module LAMMPS
-
+import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
@@ -50,7 +50,7 @@ end
 mutable struct LMP
     handle::Ptr{Cvoid}
 
-    function LMP(args::Vector{String}=String[])
+    function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         if isempty(args)
             argsv = C_NULL
         else
@@ -60,7 +60,14 @@ mutable struct LMP
         end
 
         GC.@preserve args begin
-            handle = API.lammps_open_no_mpi(length(args), argsv, C_NULL)
+            if comm !== nothing
+                if !MPI.Initialized()
+                    error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
+                end
+                handle = API.lammps_open(length(args), argsv, comm, C_NULL)
+            else
+                handle = API.lammps_open_no_mpi(length(args), argsv, C_NULL)
+            end
         end
 
         this = new(handle)
@@ -72,8 +79,8 @@ mutable struct LMP
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
-function LMP(f::Function, args=String[])
-    lmp = LMP(args)
+function LMP(f::Function, args=String[], comm=nothing)
+    lmp = LMP(args, comm)
     f(lmp)
 end
 

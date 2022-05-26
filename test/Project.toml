@@ -1,7 +1,7 @@
 [deps]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 GalacticOptim = "a75be94c-b780-496d-a8a9-0878b188d577"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
