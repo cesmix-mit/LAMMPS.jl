@@ -1,10 +1,10 @@
 module API
 
 using CEnum
+import MPI: MPI_Comm
 
 import LAMMPS_jll
 import LAMMPS_jll: liblammps
-import MPI: MPI_Comm
 
 @cenum _LMP_DATATYPE_CONST::UInt32 begin
     LAMMPS_INT = 0
