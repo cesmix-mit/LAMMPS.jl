@@ -315,4 +315,9 @@ function lammps_get_last_error_message(handle, buffer, buf_size)
     ccall((:lammps_get_last_error_message, liblammps), Cint, (Ptr{Cvoid}, Ptr{Cchar}, Cint), handle, buffer, buf_size)
 end
 
+# experimental
+function lammps_foreign_add_pair_style(handle, name, ctx, compute_fptr)
+    ccall((:lammps_foreign_add_pair_style, liblammps), Cvoid, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cvoid}, Ptr{Cvoid}), handle, name, ctx, compute_fptr)
+end
+
 end # module

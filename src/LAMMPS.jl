@@ -49,6 +49,7 @@ end
 
 mutable struct LMP
     handle::Ptr{Cvoid}
+    registered_pairs::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         if isempty(args)
@@ -70,7 +71,7 @@ mutable struct LMP
             end
         end
 
-        this = new(handle)
+        this = new(handle, Dict{String, Any}())
         finalizer(this) do this
             API.lammps_close(this)
         end
@@ -298,5 +299,7 @@ function gather_atoms(lmp::LMP, name, T, count)
     check(lmp)
     return data
 end
+
+include("pair.jl")
 
 end # module
