@@ -15,13 +15,38 @@ command(lmp, "boundary p p p")
 command(lmp, "region cell block 0 $x_hi 0 $y_hi 0 $z_hi units box")
 command(lmp, "create_box 1 cell")
 
+# Use `pair_style zero` to create neighbor list for `julia_lj`
+cutoff = 2.5
+command(lmp, "pair_style zero $cutoff")
+command(lmp, "pair_coeff * *")
 command(lmp, "fix julia_lj all external pf/callback 1 1")
 
-# Register external fix
-lj = LAMMPS.FixExternal(lmp, "julia_lj") do fix, timestep, nlocal, ids, x, fexternal
-    @info "julia lj called" timestep nlocal
-    LAMMPS.energy_global!(fix, 0.0)
+const coefficients = Dict(
+    1 => Dict(
+        1 => [48.0, 24.0, 4.0,4.0]
+    )
+)
+
+function compute_force(rsq, itype, jtype)
+    coeff = coefficients[itype][jtype]
+    r2inv  = 1.0/rsq
+    r6inv  = r2inv^3
+    lj1 = coeff[1]
+    lj2 = coeff[2]
+    return (r6inv * (lj1*r6inv - lj2))*r2inv
 end
+
+function compute_energy(rsq, itype, jtype)
+    coeff = coefficients[itype][jtype]
+    r2inv  = 1.0/rsq
+    r6inv  = r2inv^3
+    lj3 = coeff[3]
+    lj4 = coeff[4]
+    return (r6inv * (lj3*r6inv - lj4))
+end
+
+# Register external fix
+lj = LAMMPS.PairExternal(lmp, "julia_lj", "zero", compute_force, compute_energy, cutoff)
 
 # Setup atoms
 natoms = 10
