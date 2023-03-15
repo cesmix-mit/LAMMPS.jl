@@ -49,12 +49,23 @@ end
 # virial_global!
 # function virial_global!(fix::FixExternal, )
 
+const NEIGHMASK = 0x3FFFFFFF
+const SBBITS = 30
+sbmask(atom) = (atom >> SBBITS) & 3
+
 function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_global)
     cutsq = cut_global^2
     FixExternal(lmp, name) do fix, timestep, nlocal, ids, x, fexternal
         # Full neighbor list
         idx = pair_neighbor_list(fix.lmp, neigh_name, 1, 0, 0)
         nelements = API.lammps_neighlist_num_elements(fix.lmp, idx)
+
+        # TODO how to obtain in fix
+        eflag = false
+        evflag = false
+
+        # How to get special_lj.
+        newton_pair = extract_setting(fix.lmp, "newton_pair") == 1
 
         type = LAMMPS.extract_atom(lmp, "type")
 
@@ -67,7 +78,11 @@ function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_
             xtmp, ytmp, ztmp = view(x, :, iatom) # TODO SArray?
             itype = type[iatom]
             for jj in 1:length(neigh)
-                jatom = neigh[jj] + 1
+                jatom = neigh[jj]
+                factor_lj = 1.0
+                jatom &= NEIGHMASK
+                jatom += 1 # 1-based indexing
+
                 delx = xtmp - x[1, jatom]
                 dely = ytmp - x[2, jatom]
                 delz = ztmp = x[3, jatom]
@@ -81,7 +96,7 @@ function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_
                     fexternal[1, iatom] += delx*fpair
                     fexternal[2, iatom] += dely*fpair
                     fexternal[3, iatom] += delz*fpair
-                    if jatom <= nlocal # newton_pair
+                    if jatom <= nlocal || newton_pair
                         fexternal[1, jatom] -= delx*fpair
                         fexternal[2, jatom] -= dely*fpair
                         fexternal[3, jatom] -= delz*fpair

@@ -440,7 +440,9 @@ A full list of settings can be found in the [lammps documentation](https://docs.
 ```
 """
 function extract_setting(lmp::LMP, name::String)::Int32
-    return API.lammps_extract_setting(lmp, name)
+    val = API.lammps_extract_setting(lmp, name)
+    val == -1 && error("Could not find setting $name")
+    return val
 end
 
 """
@@ -853,6 +855,7 @@ function _get_T(lmp::LMP, name::String)
     else
         error("Unkown per atom property $name")
     end
+end
 
 function pair_neighbor_list(lmp, name, exact, nsub, request)
     idx = API.lammps_find_pair_neighlist(lmp, name, exact, nsub, request)
