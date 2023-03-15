@@ -854,6 +854,37 @@ function _get_T(lmp::LMP, name::String)
         error("Unkown per atom property $name")
     end
 
+function pair_neighbor_list(lmp, name, exact, nsub, request)
+    idx = API.lammps_find_pair_neighlist(lmp, name, exact, nsub, request)
+    if idx == -1
+        error("Could not find neighbor list for pair $(name)")
+    end
+    return idx
+end
+
+function fix_neighbor_list(lmp, name, request)
+    idx = API.lammps_find_fix_neighlist(lmp, name, request)
+    if idx == -1
+        error("Could not find neighbor list for fix $(name)")
+    end
+    return idx
+end
+
+
+"""
+    neighbors(lmb::LMP, idx, element)
+
+Given a neighbor list `idx` and the element therein,
+return the atom index, and it's neigbors.
+"""
+function neighbors(lmp, idx, element)
+    r_iatom = Ref{Cint}()
+    r_numneigh = Ref{Cint}()
+    r_neighbors = Ref{Ptr{Cint}}(0)
+
+    API.lammps_neighlist_element_neighbors(lmp, idx, element - 1, r_iatom, r_numneigh, r_neighbors)
+
+    return r_iatom[], Base.unsafe_wrap(Array, r_neighbors[], r_numneigh[]; own = false)
 end
 
 """
