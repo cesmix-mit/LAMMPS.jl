@@ -162,6 +162,7 @@ A full ist of command-line options can be found in the [lammps documentation](ht
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
+    external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         args = copy(args)
@@ -185,7 +186,7 @@ mutable struct LMP
             throw(LAMMPSError(msg))
         end
 
-        this = new(handle)
+        this = new(handle, Dict{String, Any}())
         finalizer(close!, this)
 
         ver = version(this)
@@ -212,8 +213,10 @@ Shutdown a LAMMPS instance.
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
-       API.lammps_close(handle)
+        empty!(lmp.external_fixes)
+        API.lammps_close(handle)
     end
+    return nothing
 end
 
 """
@@ -980,5 +983,7 @@ function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
 end
 
 _check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
+
+include("external.jl")
 
 end # module

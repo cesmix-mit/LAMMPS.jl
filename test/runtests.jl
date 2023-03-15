@@ -80,6 +80,16 @@ end
     end
 end
 
+
+function f()
+    lmp = LMP(["-screen", "none"])
+    @test LAMMPS.version(lmp) >= 0
+    command(lmp, "clear")
+    @test_throws ErrorException command(lmp, "nonsense")
+    LAMMPS.close!(lmp)
+end
+
+
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, """
@@ -383,6 +393,20 @@ end
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
+end
+
+LMP(["-screen", "none"]) do lmp
+    called = Ref(false)
+    command(lmp, "boundary p p p")
+    command(lmp, "region cell block 0 1 0 1 0 1 units box")
+    command(lmp, "create_box 1 cell")
+    command(lmp, "fix julia all external pf/callback 1 1")
+    LAMMPS.FixExternal(lmp, "julia") do fix, timestep, nlocal, ids, x, fexternal
+       called[] = true
+    end
+    command(lmp, "mass 1 1.0")
+    command(lmp, "run 0")
+    @test called[] == true
 end
 
 if !Sys.iswindows()
