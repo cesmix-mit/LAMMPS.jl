@@ -49,6 +49,7 @@ end
 
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
+    external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         if !isempty(args)
@@ -67,7 +68,7 @@ mutable struct LMP
             end
         end
 
-        this = new(handle)
+        this = new(handle, Dict{String, Any}())
         finalizer(close!, this)
         return this
     end
@@ -82,8 +83,10 @@ Shutdown an LMP instance.
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
-       API.lammps_close(handle)
+        empty!(lmp.external_fixes)
+        API.lammps_close(handle)
     end
+    return nothing
 end
 
 function LMP(f::Function, args=String[], comm=nothing)
@@ -375,5 +378,7 @@ function gather_atoms(lmp::LMP, name, T, count)
     check(lmp)
     return data
 end
+
+include("external.jl")
 
 end # module
