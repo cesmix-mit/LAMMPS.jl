@@ -157,6 +157,7 @@ end
 function extract_global(lmp::LMP, name, dtype=nothing)
     if dtype === nothing
         dtype = API.lammps_extract_global_datatype(lmp, name)
+        dtype == -1 && error("Could not find dataype for global $name")
     end
     dtype = API._LMP_DATATYPE_CONST(dtype)
     type = dtype2type(dtype)
@@ -362,6 +363,12 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     else
         error("Unkown variable style $var")
     end
+end
+
+function extract_setting(lmp, name)
+    val = API.lammps_extract_setting(lmp, name)
+    val == -1 && error("Could not find setting $name")
+    return val
 end
 
 function gather_atoms(lmp::LMP, name, T, count)
