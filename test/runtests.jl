@@ -118,6 +118,7 @@ LMP(["-screen", "none"]) do lmp
     command(lmp, "create_box 1 cell")
     command(lmp, "fix julia all external pf/callback 1 1")
     LAMMPS.FixExternal(lmp, "julia") do fix, timestep, nlocal, ids, x, fexternal
+       LAMMPS.energy_global!(fix, 0.0)
        called[] = true
     end
     command(lmp, "mass 1 1.0")
