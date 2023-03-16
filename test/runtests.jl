@@ -67,3 +67,5 @@ LMP(["-screen", "none"]) do lmp
     command(lmp, "run 0")
     @test called[] == true
 end
+
+include("external_pair.jl")
