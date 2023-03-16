@@ -410,6 +410,8 @@ LMP(["-screen", "none"]) do lmp
     @test called[] == true
 end
 
+include("external_pair.jl")
+
 if !Sys.iswindows()
     @testset "MPI" begin
          @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
