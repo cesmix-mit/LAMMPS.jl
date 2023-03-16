@@ -202,6 +202,7 @@ function extract_atom(lmp::LMP, name,
 
     if dtype === nothing
         dtype = API.lammps_extract_atom_datatype(lmp, name)
+        dtype == -1 && error("Could not find dataype for atom $name")
         dtype = API._LMP_DATATYPE_CONST(dtype)
     end
 

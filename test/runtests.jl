@@ -127,3 +127,5 @@ LMP(["-screen", "none"]) do lmp
 end
 
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+
+include("external_pair.jl")
