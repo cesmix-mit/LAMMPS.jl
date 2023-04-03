@@ -14,7 +14,7 @@ command(lmp, "boundary p p p")
 command(lmp, "region cell block 0 $x_hi 0 $y_hi 0 $z_hi units box")
 command(lmp, "create_box 1 cell")
 
-# Setup stile
+# Setup style
 command(lmp, "pair_style lj/cut 2.5")
 command(lmp, "pair_coeff * * 1 1") # TODO
 
@@ -27,7 +27,11 @@ command(lmp, "mass 1 1.0")
 positions = rand(3, 10) .* 5
 LAMMPS.API.lammps_scatter_atoms(lmp, "x", 1, 3, positions)
 
+# Compute pot_e
+command(lmp, "compute pot_e all pe")
+
 command(lmp, "run 0")
 
-# extract forces
+# extract output
 forces = extract_atom(lmp, "f")
+energies = extract_compute(lmp, "pot_e", LAMMPS.API.LMP_STYLE_GLOBAL, LAMMPS.API.LMP_TYPE_SCALAR)
