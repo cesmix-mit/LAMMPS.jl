@@ -272,6 +272,10 @@ function extract_compute(lmp::LMP, name, style, type)
     if style == API.LMP_TYPE_SCALAR
         return ptr_or_value
     end
+    if ptr_or_value === nothing
+        return nothing
+    end
+    ptr = ptr_or_value::Ptr
 
     if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
         if type == API.LMP_TYPE_VECTOR
