@@ -90,6 +90,7 @@ end
 
 function check(lmp::LMP)
     err = API.lammps_has_error(lmp)
+    @show err
     if err != 0
         # TODO: Check err == 1 or err == 2 (MPI)
         buf = zeros(UInt8, 100)
@@ -220,6 +221,7 @@ function extract_atom(lmp::LMP, name,
 end
 
 function unsafe_extract_compute(lmp::LMP, name, style, type)
+    @info "unsafe_extract_compute" name style type
     if type == API.LMP_TYPE_SCALAR
         if style == API.LMP_STYLE_GLOBAL
             dtype = Ptr{Float64}
@@ -251,9 +253,14 @@ function unsafe_extract_compute(lmp::LMP, name, style, type)
 
     ptr = API.lammps_extract_compute(lmp, name, style, type)
     ptr == C_NULL && check(lmp)
+    
+    @info "extract_compute" name style type ptr extract dtype
+
+    if ptr == C_NULL
+        error("Could not extract_compute $name with $style and $type")
+    end
 
     ptr = reinterpret(dtype, ptr)
-
     if extract
         return Base.unsafe_load(ptr)
     end
@@ -261,7 +268,10 @@ function unsafe_extract_compute(lmp::LMP, name, style, type)
 end
 
 function extract_compute(lmp::LMP, name, style, type)
-    ptr = unsafe_extract_compute(lmp, name, style, type)
+    ptr_or_value = unsafe_extract_compute(lmp, name, style, type)
+    if style == API.LMP_TYPE_SCALAR
+        return ptr_or_value
+    end
 
     if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
         if type == API.LMP_TYPE_VECTOR
