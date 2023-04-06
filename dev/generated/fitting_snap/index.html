@@ -138,26 +138,26 @@ y = calc_y(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N, E_r
  1715.5343234240943</code></pre><h2 id="Calculate-the-optimal-solution"><a class="docs-heading-anchor" href="#Calculate-the-optimal-solution">Calculate the optimal solution</a><a id="Calculate-the-optimal-solution-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-the-optimal-solution" title="Permalink"></a></h2><p>The optimal solution <span>$\widehat{\mathbf{\beta}}$</span> is, thus:</p><p class="math-container">\[\begin{equation*}
     \widehat{\mathbf{\beta}} = \mathrm{argmin}_{\mathbf{\beta}} ||\mathbf{A \cdot \boldsymbol{\beta} - y}||^2 = \mathbf{A^{-1} \cdot y}
 \end{equation*}\]</p><pre><code class="language-julia hljs">β = A \ y</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">62-element Vector{Float64}:
-   3.1831789753898474
-   0.8023162543471525
- -14.628057637960872
-  60.43350656714389
-  83.7175873240777
-  72.40314826113097
- -39.64673927181154
-   0.7862477455548402
- -21.489753366069213
- -52.532671653591265
+   3.1831789753519004
+   0.8023162544367168
+ -14.628057637779545
+  60.43350656711164
+  83.71758732395317
+  72.40314826110387
+ -39.64673927179784
+   0.7862477455923216
+ -21.489753366168767
+ -52.532671653630025
    ⋮
- -49.634532481624966
-  76.21359346434149
-  29.215880892469414
-  71.39717173822902
- -37.6984434845818
- -30.938195928683296
-  17.86356289364354
-  48.218755574732896
- -29.305193438226734</code></pre><h2 id="Check-results"><a class="docs-heading-anchor" href="#Check-results">Check results</a><a id="Check-results-1"></a><a class="docs-heading-anchor-permalink" href="#Check-results" title="Permalink"></a></h2><p>The local energy can be decomposed into separate contributions for each atom. SNAP energy can be written in terms of the bispectrum components of the atoms and a set of coefficients. <span>$K$</span> components of the bispectrum are considered so that <span>$\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}$</span> for each atom <span>$i$</span>, whose SNAP energy is computed as follows:</p><p class="math-container">\[   E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \boldsymbol{\tilde{\beta}}^{\alpha_i} \cdot \mathbf{B}^i\]</p><p>where <span>$\alpha_i$</span> depends on the atom type.</p><pre><code class="language-julia hljs">function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
+ -49.634532481691345
+  76.21359346432223
+  29.215880892544156
+  71.39717173822666
+ -37.69844348461039
+ -30.938195928677786
+  17.863562893682904
+  48.21875557470548
+ -29.30519343826745</code></pre><h2 id="Check-results"><a class="docs-heading-anchor" href="#Check-results">Check results</a><a id="Check-results-1"></a><a class="docs-heading-anchor-permalink" href="#Check-results" title="Permalink"></a></h2><p>The local energy can be decomposed into separate contributions for each atom. SNAP energy can be written in terms of the bispectrum components of the atoms and a set of coefficients. <span>$K$</span> components of the bispectrum are considered so that <span>$\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}$</span> for each atom <span>$i$</span>, whose SNAP energy is computed as follows:</p><p class="math-container">\[   E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \boldsymbol{\tilde{\beta}}^{\alpha_i} \cdot \mathbf{B}^i\]</p><p>where <span>$\alpha_i$</span> depends on the atom type.</p><pre><code class="language-julia hljs">function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     # Calculate y
     lmp = LMP([&quot;-screen&quot;,&quot;none&quot;])
     bs = run_snap(lmp, path, rcut, twojmax)
@@ -202,4 +202,4 @@ end</code></pre><pre class="documenter-example-output"><code class="nohighlight 
 1732.92, 1748.40, 0.89
 1687.87, 1692.51, 0.27
 1726.56, 1756.36, 1.73
-1685.35, 1747.74, 3.70</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snap/">« Basic SNAP</a><a class="docs-footer-nextpage" href="../../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 6 April 2023 04:59">Thursday 6 April 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+1685.35, 1747.74, 3.70</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snap/">« Basic SNAP</a><a class="docs-footer-nextpage" href="../../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 6 April 2023 21:48">Thursday 6 April 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
