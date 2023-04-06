@@ -310,6 +310,11 @@ end
 
 """
     extract_variable(lmp::LMP, name, group)
+
+Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
+a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
+Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
+For other variable styles, their string value is returned.
 """
 function extract_variable(lmp::LMP, name::String, group=nothing)
     var = API.lammps_extract_variable_datatype(lmp, name)
