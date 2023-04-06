@@ -17,7 +17,7 @@ locate() = API.LAMMPS_jll.get_liblammps_path()
 """
     set_library!(path)
 
-Change the library path used by LAMMPS.jl for `liblammps.so` to `path`. 
+Change the library path used by LAMMPS.jl for `liblammps.so` to `path`.
 
 !!! note
     You will need to restart Julia to use the new library.
@@ -99,6 +99,10 @@ function check(lmp::LMP)
     end
 end
 
+
+"""
+    command(lmp::lmp, cmd)
+"""
 function command(lmp::LMP, cmd)
     ptr = API.lammps_command(lmp, cmd)
     ptr == C_NULL && check(lmp)
@@ -138,6 +142,9 @@ function dtype2type(dtype::API._LMP_DATATYPE_CONST)
     return type
 end
 
+"""
+    extract_global(lmp, name, dtype=nothing)
+"""
 function extract_global(lmp::LMP, name, dtype=nothing)
     if dtype === nothing
         dtype = API.lammps_extract_global_datatype(lmp, name)
@@ -176,7 +183,7 @@ function unsafe_wrap(ptr, shape)
 end
 
 """
-    extract_atom(lmp, name, dtype=nothing, )
+    extract_atom(lmp, name, dtype=nothing, axes1, axes2)
 """
 function extract_atom(lmp::LMP, name,
                       dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
@@ -264,6 +271,9 @@ function unsafe_extract_compute(lmp::LMP, name, style, type)
     return ptr
 end
 
+"""
+    extract_compute(lmp, name, style, type)
+"""
 function extract_compute(lmp::LMP, name, style, type)
     ptr_or_value = unsafe_extract_compute(lmp, name, style, type)
     if style == API.LMP_TYPE_SCALAR
@@ -293,6 +303,56 @@ function extract_compute(lmp::LMP, name, style, type)
         end
     end
     return nothing
+end
+
+"""
+    extract_variable(lmp::LMP, name, group)
+
+Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
+a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
+Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
+For other variable styles, their string value is returned.
+"""
+function extract_variable(lmp::LMP, name::String, group=nothing)
+    var = API.lammps_extract_variable_datatype(lmp, name)
+    if var == -1
+        throw(KeyError(name))
+    end
+    if group === nothing
+        group = C_NULL
+    end
+
+    if var == API.LMP_VAR_EQUAL
+        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        val = Base.unsafe_load(Base.unsafe_convert(Ptr{Float64}, ptr))
+        API.lammps_free(ptr)
+        return val
+    elseif var == API.LMP_VAR_ATOM
+        nlocal = extract_global(lmp, "nlocal")
+        ptr = API.lammps_extract_variable(lmp, name, group)
+        if ptr == C_NULL
+            error("Group $group for variable $name with style atom not available.")
+        end
+        # LAMMPS uses malloc, so and we are taking ownership of this buffer
+        val = copy(Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), nlocal; own=false))
+        API.lammps_free(ptr)
+        return val
+    elseif var == API.LMP_VAR_VECTOR
+        # TODO Fix lammps docs `GET_VECTOR_SIZE`
+        ptr = API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR")
+        if ptr == C_NULL
+            error("$name is a vector style variable but has no size.")
+        end
+        sz = Base.unsafe_load(Base.unsafe_convert(Ptr{Cint}, ptr))
+        API.lammps_free(ptr)
+        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), sz, own=false)
+    elseif var == API.LMP_VAR_STRING
+        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        return Base.unsafe_string(Base.unsafe_convert(Ptr{Cchar}, ptr))
+    else
+        error("Unkown variable style $var")
+    end
 end
 
 function gather_atoms(lmp::LMP, name, T, count)
