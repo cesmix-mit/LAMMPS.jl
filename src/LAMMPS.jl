@@ -329,11 +329,12 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
         nlocal = extract_global(lmp, "nlocal")
         ptr = API.lammps_extract_variable(lmp, name, group)
         if ptr == C_NULL
-            throw(KeyError(group))
+            error("Group $group for variable $name with style atom not available.")
         end
-        # TODO: We assume that malloc between Julia and LAMMPS is compatible
-        #       Alternative copy data.
-        return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), nlocal; own=true)
+        # LAMMPS uses malloc, so and we are taking ownership of this buffer
+        val = copy(Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), nlocal; own=false))
+        API.lammps_free(ptr)
+        return val
     elseif var == API.LMP_VAR_VECTOR
         # TODO Fix lammps docs `GET_VECTOR_SIZE`
         ptr = API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR")
@@ -343,7 +344,7 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
         sz = Base.unsafe_load(Base.unsafe_convert(Ptr{Cint}, ptr))
         API.lammps_free(ptr)
         ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        return Base.unsafe_wrap(Vector{Float64}, ptr, sz, own=false)
+        return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), sz, own=false)
     elseif var == API.LMP_VAR_STRING
         ptr = API.lammps_extract_variable(lmp, name, C_NULL)
         return Base.unsafe_string(Base.unsafe_convert(Ptr{Cchar}, ptr))
