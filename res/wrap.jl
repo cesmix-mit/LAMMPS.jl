@@ -10,7 +10,7 @@ isdir(header_dir) || error("$header_dir does not exist")
 # isdir(mpi_header_dir) || error("$mpi_header_dir does not exist")
 
 const LAMMPS_INCLUDE = normpath(header_dir)
-const MPI_INCLUDE = normpath(mpi_header_dir)
+# const MPI_INCLUDE = normpath(mpi_header_dir)
 
 args = get_default_args()
 push!(args, "-I$LAMMPS_INCLUDE")
