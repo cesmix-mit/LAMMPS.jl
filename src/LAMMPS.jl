@@ -221,7 +221,6 @@ function extract_atom(lmp::LMP, name,
 end
 
 function unsafe_extract_compute(lmp::LMP, name, style, type)
-    @info "unsafe_extract_compute" name style type
     if type == API.LMP_TYPE_SCALAR
         if style == API.LMP_STYLE_GLOBAL
             dtype = Ptr{Float64}
@@ -253,8 +252,6 @@ function unsafe_extract_compute(lmp::LMP, name, style, type)
 
     ptr = API.lammps_extract_compute(lmp, name, style, type)
     ptr == C_NULL && check(lmp)
-    
-    @info "extract_compute" name style type ptr extract dtype
 
     if ptr == C_NULL
         error("Could not extract_compute $name with $style and $type")
