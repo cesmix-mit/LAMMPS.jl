@@ -95,23 +95,34 @@ function version(lmp::LMP)
     API.lammps_version(lmp)
 end
 
-function check(lmp::LMP)
-    err = API.lammps_has_error(lmp)
-    if err != 0
-        # TODO: Check err == 1 or err == 2 (MPI)
-        buf = zeros(UInt8, 100)
-        API.lammps_get_last_error_message(lmp, buf, length(buf))
-        error(String(buf))
-    end
+struct LAMMPSError <: Exception
+    msg::String
 end
 
+function LAMMPSError(lmp::LMP)
+    buf = zeros(UInt8, 100)
+    API.lammps_get_last_error_message(lmp, buf, length(buf))
+    LAMMPSException(String(buf))
+end
+
+function Base.showerror(io::IO, err::LAMMPSError)
+    print(io, "LAMMPS Error: \n", err.msg)
+end
+
+function check(lmp::LMP)
+    err = API.lammps_has_error(lmp)
+    # TODO: Check err == 1 or err == 2 (MPI)
+    if err != 0
+        throw(LAMMPSError(lmp))
+    end
+end
 
 """
     command(lmp::lmp, cmd)
 """
 function command(lmp::LMP, cmd)
-    ptr = API.lammps_command(lmp, cmd)
-    ptr == C_NULL && check(lmp)
+    API.lammps_command(lmp, cmd)
+    check(lmp)
     nothing
 end
 
@@ -124,7 +135,9 @@ Will be precise up to 53-bit signed integer due to the
 underlying `lammps_get_natoms` returning a Float64.
 """
 function get_natoms(lmp::LMP)
-    Int64(API.lammps_get_natoms(lmp))
+    natoms = API.lammps_get_natoms(lmp)
+    check(lmp)
+    return Int64(natoms)
 end
 
 function dtype2type(dtype::API._LMP_DATATYPE_CONST)
@@ -154,11 +167,13 @@ end
 function extract_global(lmp::LMP, name, dtype=nothing)
     if dtype === nothing
         dtype = API.lammps_extract_global_datatype(lmp, name)
+        check()
     end
     dtype = API._LMP_DATATYPE_CONST(dtype)
     type = dtype2type(dtype)
 
     ptr = API.lammps_extract_global(lmp, name)
+    check()
     ptr = reinterpret(type, ptr)
 
     if ptr !== C_NULL
@@ -198,6 +213,7 @@ function extract_atom(lmp::LMP, name,
 
     if dtype === nothing
         dtype = API.lammps_extract_atom_datatype(lmp, name)
+        check()
         dtype = API._LMP_DATATYPE_CONST(dtype)
     end
 
@@ -228,6 +244,7 @@ function extract_atom(lmp::LMP, name,
 
     type = dtype2type(dtype)
     ptr = API.lammps_extract_atom(lmp, name)
+    check()
     ptr = reinterpret(type, ptr)
 
     unsafe_wrap(ptr, shape)
@@ -264,7 +281,7 @@ function unsafe_extract_compute(lmp::LMP, name, style, type)
     end
 
     ptr = API.lammps_extract_compute(lmp, name, style, type)
-    ptr == C_NULL && check(lmp)
+    check(lmp)
 
     if ptr == C_NULL
         error("Could not extract_compute $name with $style and $type")
@@ -321,6 +338,7 @@ For other variable styles, their string value is returned.
 """
 function extract_variable(lmp::LMP, name::String, group=nothing)
     var = API.lammps_extract_variable_datatype(lmp, name)
+    check()
     if var == -1
         throw(KeyError(name))
     end
@@ -330,12 +348,14 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
 
     if var == API.LMP_VAR_EQUAL
         ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        check()
         val = Base.unsafe_load(Base.unsafe_convert(Ptr{Float64}, ptr))
         API.lammps_free(ptr)
         return val
     elseif var == API.LMP_VAR_ATOM
         nlocal = extract_global(lmp, "nlocal")
         ptr = API.lammps_extract_variable(lmp, name, group)
+        check()
         if ptr == C_NULL
             error("Group $group for variable $name with style atom not available.")
         end
@@ -346,15 +366,18 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     elseif var == API.LMP_VAR_VECTOR
         # TODO Fix lammps docs `GET_VECTOR_SIZE`
         ptr = API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR")
+        check()
         if ptr == C_NULL
             error("$name is a vector style variable but has no size.")
         end
         sz = Base.unsafe_load(Base.unsafe_convert(Ptr{Cint}, ptr))
         API.lammps_free(ptr)
         ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        check()
         return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), sz, own=false)
     elseif var == API.LMP_VAR_STRING
         ptr = API.lammps_extract_variable(lmp, name, C_NULL)
+        check()
         return Base.unsafe_string(Base.unsafe_convert(Ptr{Cchar}, ptr))
     else
         error("Unkown variable style $var")
