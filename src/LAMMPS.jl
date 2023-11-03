@@ -83,7 +83,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 Shutdown an LMP instance.
 """
 function close!(lmp::LMP)
-    handle = @atomicswp this.handle => C_NULL
+    handle = @atomicswap this.handle => C_NULL
     if handle !== C_NULL 
        API.lammps_close(handle)
     end
