@@ -13,7 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - "1.6"
+          - "1.8"
+          - "1.9"
+          - "~1.10.0-0"
           - "nightly"
         os:
           - ubuntu-latest
@@ -37,14 +39,6 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - name: add CESMIX registry
-        run: |
-          julia -e '
-            using Pkg
-            Pkg.Registry.add("General")
-            Pkg.Registry.add(RegistrySpec(url = "https://github.com/cesmix-mit/CESMIX.git"))
-          '
-        shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1

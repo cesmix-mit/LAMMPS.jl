@@ -48,7 +48,7 @@ function set_library!(path)
 end
 
 mutable struct LMP
-    handle::Ptr{Cvoid}
+    @atomic handle::Ptr{Cvoid}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         if isempty(args)
@@ -71,13 +71,23 @@ mutable struct LMP
         end
 
         this = new(handle)
-        finalizer(this) do this
-            API.lammps_close(this)
-        end
+        finalizer(close!, this)
         return this
     end
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
+
+"""
+    close!(lmp::LMP)
+
+Shutdown an LMP instance.
+"""
+function close!(lmp::LMP)
+    handle = @atomicswap lmp.handle = C_NULL
+    if handle !== C_NULL 
+       API.lammps_close(handle)
+    end
+end
 
 function LMP(f::Function, args=String[], comm=nothing)
     lmp = LMP(args, comm)
