@@ -197,7 +197,7 @@ end
 """
 function extract_atom(lmp::LMP, name,
                       dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
-                      axes1=nothing, axes2=nothing)
+                      axes1=nothing, axes2=nothing; copy=true)
 
 
     if dtype === nothing
@@ -234,7 +234,12 @@ function extract_atom(lmp::LMP, name,
     ptr = API.lammps_extract_atom(lmp, name)
     ptr = reinterpret(type, ptr)
 
-    unsafe_wrap(ptr, shape)
+    arr = unsafe_wrap(ptr, shape)
+    if copy
+        return Base.copy(arr)
+    else
+        return arr
+    end
 end
 
 function unsafe_extract_compute(lmp::LMP, name, style, type)
