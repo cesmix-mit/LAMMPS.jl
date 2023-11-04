@@ -100,7 +100,6 @@ end
 
 function check(lmp::LMP)
     err = API.lammps_has_error(lmp)
-    @show err
     if err != 0
         # TODO: Check err == 1 or err == 2 (MPI)
         buf = zeros(UInt8, 100)
