@@ -51,12 +51,9 @@ mutable struct LMP
     @atomic handle::Ptr{Cvoid}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
-        if isempty(args)
-            argsv = C_NULL
-        else
+        if !isempty(args)
             args = copy(args)
             pushfirst!(args, "lammps")
-            argsv = map(pointer, args)
         end
 
         GC.@preserve args begin
@@ -64,9 +61,9 @@ mutable struct LMP
                 if !MPI.Initialized()
                     error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
                 end
-                handle = API.lammps_open(length(args), argsv, comm, C_NULL)
+                handle = API.lammps_open(length(args), args, comm, C_NULL)
             else
-                handle = API.lammps_open_no_mpi(length(args), argsv, C_NULL)
+                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
             end
         end
 
