@@ -1,0 +1,53 @@
+#echo screen
+ 
+variable nsample equal 10
+variable nsteps equal 2000
+
+boundary	 	 p p p
+units	 	 	 metal
+atom_style	 	 atomic
+atom_modify map array
+
+read_data DATA
+
+neighbor    1.0 bin
+#neigh_modify once yes
+
+####################################################################################################
+
+pair_style morse 2.0
+pair_coeff 1 1 400.0 4.0 1.5
+pair_coeff 1 2 2.5 0.1 0.9375
+pair_coeff 2 2 0.0 1.0 1.0
+
+# Initialize velocity, thermo settings, timestep and ensemble
+velocity	 all create 200.0 20101 rot yes mom yes
+thermo  	 ${nsample}
+#thermo_style custom step etotal pe ke temp #ke press vol temp
+#thermo_style custom step c_pe_A c_ke_A c_pe_B c_ke_B c_mode_hf[3] #ke press vol temp
+thermo_style custom step etotal pe temp
+fix 1 all nve
+#fix 1 all nvt temp 1000.0 1000.0 1.0
+#fix 2 all temp/rescale 1000 1000.0 1000.0 1.0 1.0
+timestep  0.0005
+
+#fix 2 all momentum 1 linear 1 1 1
+
+#fix test all mode -0.1 0.1 0.1 # Initialize mode temperatures
+
+# Run MD	 	 	 	 	  
+dump 1 all xyz ${nsample} dump.xyz	
+dump_modify 1 pbc no
+dump 2 all custom ${nsample} dump.positions_and_forces id type x y z fx fy fz 
+#dump 3 all custom 1000 dump.positions id type x y z
+#dump 3 all custom 1 dump.vel id vx vy vz
+#dump_modify 3 format float %20.15g scale yes
+dump_modify 2 sort id
+#dump_modify 3 sort id
+#dump_modify 3 sort id
+run ${nsteps}
+unfix 1
+undump 1
+undump 2 
+
+#write_data Si.data

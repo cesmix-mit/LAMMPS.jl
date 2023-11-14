@@ -1,0 +1,11 @@
+#LAMMPS SNAP coeffs for hydrogen diffusing in palladium.
+
+#required
+rcutfac 2.0
+twojmax 6
+
+#optional
+rfac0 0.99363
+rmin0 0
+bzeroflag 0
+quadraticflag 0

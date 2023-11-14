@@ -1,0 +1,82 @@
+LAMMPS (27 May 2021)
+#echo screen
+
+variable nsample equal 100
+variable nsteps equal 200000
+
+boundary	 	 p p p
+units	 	 	 metal
+atom_style	 	 atomic
+atom_modify map array
+
+read_data DATA
+Reading data file ...
+  orthogonal box = (0.0000000 0.0000000 0.0000000) to (6.0000000 6.0000000 6.0000000)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  65 atoms
+  read_data CPU = 0.001 seconds
+
+neighbor    1.0 bin
+#neigh_modify once yes
+
+####################################################################################################
+
+pair_style snap
+pair_coeff * * fit.snapcoeff fit.snapparam Pd H
+SNAP Element = Pd, Radius 0.5, Weight 0.5
+SNAP Element = H, Radius 0.5, Weight 1
+SNAP keyword rcutfac 4.0
+SNAP keyword twojmax 6
+SNAP keyword rfac0 0.99363
+SNAP keyword rmin0 0
+SNAP keyword bzeroflag 0
+SNAP keyword quadraticflag 0
+
+# Initialize velocity, thermo settings, timestep and ensemble
+velocity	 all create 200.0 20101 rot yes mom yes
+thermo  	 ${nsample}
+thermo  	 100
+#thermo_style custom step etotal pe ke temp #ke press vol temp
+#thermo_style custom step c_pe_A c_ke_A c_pe_B c_ke_B c_mode_hf[3] #ke press vol temp
+thermo_style custom step etotal pe temp
+fix 1 all nve
+#fix 1 all nvt temp 1000.0 1000.0 1.0
+#fix 2 all temp/rescale 1000 1000.0 1000.0 1.0 1.0
+timestep  0.0005
+
+#fix 2 all momentum 1 linear 1 1 1
+
+#fix test all mode -0.1 0.1 0.1 # Initialize mode temperatures
+
+# Run MD
+dump 1 all xyz ${nsample} dump.xyz
+dump 1 all xyz 100 dump.xyz
+dump_modify 1 pbc no
+dump 2 all custom ${nsample} dump.positions_and_forces id type x y z fx fy fz
+dump 2 all custom 100 dump.positions_and_forces id type x y z fx fy fz
+#dump 3 all custom 1000 dump.positions id type x y z
+#dump 3 all custom 1 dump.vel id vx vy vz
+#dump_modify 3 format float %20.15g scale yes
+dump_modify 2 sort id
+#dump_modify 3 sort id
+#dump_modify 3 sort id
+run ${nsteps}
+run 200000
+Neighbor list info ...
+  update every 1 steps, delay 10 steps, check yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 5
+  ghost atom cutoff = 5
+  binsize = 2.5, bins = 3 3 3
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair snap, perpetual
+      attributes: full, newton on
+      pair build: full/bin/atomonly
+      stencil: full/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 5.870 | 5.870 | 5.870 Mbytes
+Step TotEng PotEng Temp 
+       0   -20303.615    -20305.27          200 
+ERROR: Lost atoms: original 65 current 36 (../thermo.cpp:440)
+Last command: run ${nsteps}
