@@ -390,9 +390,9 @@ function lammps_flush_buffers(ptr)
     ccall((:lammps_flush_buffers, liblammps), Cvoid, (Ptr{Cvoid},), ptr)
 end
 
-function lammps_fix_external_set_energy_peratom(handle, id, eng)
-    ccall((:lammps_fix_external_set_energy_peratom, liblammps), Cvoid, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), handle, id, eng)
-end
+# function lammps_fix_external_set_energy_peratom(handle, id, eng)
+#     ccall((:lammps_fix_external_set_energy_peratom, liblammps), Cvoid, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), handle, id, eng)
+# end
 
 function lammps_free(ptr)
     ccall((:lammps_free, liblammps), Cvoid, (Ptr{Cvoid},), ptr)

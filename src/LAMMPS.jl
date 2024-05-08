@@ -547,7 +547,7 @@ function neighbors(lmp, idx, element)
 
     API.lammps_neighlist_element_neighbors(lmp, idx, element - 1, r_iatom, r_numneigh, r_neighbors)
 
-    return r_iatom[], Base.unsafe_wrap(Array, r_neighbors[], r_numneigh[]; own = false)
+    return Int(r_iatom[]), Base.unsafe_wrap(Array, r_neighbors[], r_numneigh[]; own = false)
 end
 
 include("external.jl")
