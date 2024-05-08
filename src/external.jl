@@ -27,13 +27,15 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fix = Base.unsafe_pointer_to_objref(ctx)::FixExternal
     nlocal = Int(nlocal)
 
+    nghost = extract_global(fix.lmp, "nghost")
+
     @debug "Calling fix_external_callback on" fix timestep nlocal
-    shape = (nlocal, 3)
+    shape = (nlocal+nghost, 3)
     x = unsafe_wrap(x, shape)
     fexternal = unsafe_wrap(fexternal, shape)
-    ids = unsafe_wrap(ids, (nlocal,))
+    ids = unsafe_wrap(ids, (nlocal+nghost,))
 
-    fix.callback(fix, timestep, nlocal, ids, x, fexternal)
+    fix.callback(fix, timestep, nlocal, nghost, ids, x, fexternal)
     return nothing
 end
 
@@ -56,7 +58,7 @@ const special_lj = [1.0, 0.0, 0.0 ,0.0]
 
 function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_global)
     cutsq = cut_global^2
-    FixExternal(lmp, name) do fix, timestep, nlocal, ids, x, fexternal
+    FixExternal(lmp, name) do fix, timestep, nlocal, nghost, ids, x, fexternal
         # Full neighbor list
         idx = pair_neighbor_list(fix.lmp, neigh_name, 1, 0, 0)
         nelements = API.lammps_neighlist_num_elements(fix.lmp, idx)
@@ -68,7 +70,7 @@ function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_
         newton_pair = extract_setting(fix.lmp, "newton_pair") == 1
         # special_lj = extract_global(fix.lmp, "special_lj")
 
-        type = LAMMPS.extract_atom(lmp, "type")
+        type = LAMMPS.extract_atom(lmp, "type", API.LAMMPS_INT, nlocal+nghost)
 
         # zero-out fexternal (noticed some undef memory)
         fexternal .= 0
