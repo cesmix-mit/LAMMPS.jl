@@ -17,6 +17,8 @@ mutable struct FixExternal
         callback = @cfunction(fix_external_callback, Cvoid, (Ptr{Cvoid}, Int64, Cint, Ptr{Cint}, Ptr{Ptr{Float64}}, Ptr{Ptr{Float64}}))
         API.lammps_set_fix_external_callback(lmp, name, callback, ctx)
 
+        # Ensure function is compiled before timestep 0
+        @assert precompile(this.callback, (FixExternal, Int, Int, Int, Vector{Int32}, Matrix{Float64}, Matrix{Float64}))
         return this
     end
 end
@@ -27,7 +29,7 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fix = Base.unsafe_pointer_to_objref(ctx)::FixExternal
     nlocal = Int(nlocal)
 
-    nghost = extract_global(fix.lmp, "nghost")
+    nghost = Int(extract_global(fix.lmp, "nghost"))
 
     @debug "Calling fix_external_callback on" fix timestep nlocal
     shape = (nlocal+nghost, 3)
@@ -35,6 +37,7 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fexternal = unsafe_wrap(fexternal, shape)
     ids = unsafe_wrap(ids, (nlocal+nghost,))
 
+    # necessary dynamic
     fix.callback(fix, timestep, nlocal, nghost, ids, x, fexternal)
     return nothing
 end
@@ -56,9 +59,9 @@ const SBBITS = 30
 sbmask(atom) = (atom >> SBBITS) & 3
 const special_lj = [1.0, 0.0, 0.0 ,0.0]
 
-function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_global)
+function PairExternal(lmp, name, neigh_name, compute_force::F, compute_energy::E, cut_global) where {E, F}
     cutsq = cut_global^2
-    FixExternal(lmp, name) do fix, timestep, nlocal, nghost, ids, x, fexternal
+    function pair(fix::FixExternal, timestep::Int, nlocal::Int, nghost::Int, ids::Vector{Int32}, x::Matrix{Float64}, fexternal::Matrix{Float64})
         # Full neighbor list
         idx = pair_neighbor_list(fix.lmp, neigh_name, 1, 0, 0)
         nelements = API.lammps_neighlist_num_elements(fix.lmp, idx)
@@ -70,21 +73,21 @@ function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_
         newton_pair = extract_setting(fix.lmp, "newton_pair") == 1
         # special_lj = extract_global(fix.lmp, "special_lj")
 
-        type = LAMMPS.extract_atom(lmp, "type", API.LAMMPS_INT, nlocal+nghost)
+        type = LAMMPS.extract_atom(lmp, "type", API.LAMMPS_INT, nlocal+nghost)::Vector{Int32}
 
         # zero-out fexternal (noticed some undef memory)
         fexternal .= 0
 
         energies = zeros(nlocal)
 
-        for ii in 1:nelements
+        for ii in 1:Int(nelements)
             # local atom index (i.e. in the range [0, nlocal + nghost)
             iatom, neigh = LAMMPS.neighbors(lmp, idx, ii)
             iatom += 1 # 1-based indexing
             xtmp, ytmp, ztmp = view(x, :, iatom) # TODO SArray?
             itype = type[iatom]
             for jj in 1:length(neigh)
-                jatom = neigh[jj]
+                jatom = Int(neigh[jj])
                 factor_lj = special_lj[sbmask(jatom) + 1]
                 jatom &= NEIGHMASK
                 jatom += 1 # 1-based indexing
@@ -115,4 +118,5 @@ function PairExternal(lmp, name, neigh_name, compute_force, compute_energy, cut_
         API.lammps_fix_external_set_energy_peratom(fix.lmp, fix.name, energies)
         energy_global!(fix, sum(energies))
     end
+    FixExternal(pair, lmp, name) 
 end
