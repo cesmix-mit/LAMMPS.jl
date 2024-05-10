@@ -21,13 +21,13 @@ command(lmp, "pair_style zero $cutoff")
 command(lmp, "pair_coeff * *")
 command(lmp, "fix julia_lj all external pf/callback 1 1")
 
-const coefficients = Dict(
-    1 => Dict(
-        1 => [48.0, 24.0, 4.0,4.0]
+const coefficients = Base.ImmutableDict(
+    1 => Base.ImmutableDict(
+        1 => [48.0, 24.0, 4.0, 4.0]
     )
 )
 
-function compute_force(rsq, itype, jtype)
+@inline function compute_force(rsq, itype, jtype)
     coeff = coefficients[itype][jtype]
     r2inv  = 1.0/rsq
     r6inv  = r2inv^3
@@ -36,7 +36,7 @@ function compute_force(rsq, itype, jtype)
     return (r6inv * (lj1*r6inv - lj2))*r2inv
 end
 
-function compute_energy(rsq, itype, jtype)
+@inline function compute_energy(rsq, itype, jtype)
     coeff = coefficients[itype][jtype]
     r2inv  = 1.0/rsq
     r6inv  = r2inv^3
