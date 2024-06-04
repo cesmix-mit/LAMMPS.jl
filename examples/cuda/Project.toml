@@ -1,0 +1,4 @@
+[deps]
+ArraysOfArrays = "65a8f2f4-9b39-5baf-92e2-a9cc46fdf018"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+LAMMPS = "ee2e13b9-eee9-4449-aafa-cfa6a2dbe14d"
