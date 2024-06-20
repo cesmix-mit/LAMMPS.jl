@@ -3,7 +3,7 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather_atoms
+       gather_atoms, gather, scatter
 
 using Preferences
 
@@ -361,19 +361,64 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     end
 end
 
-function gather_atoms(lmp::LMP, name, T, count)
-    if T === Int32
-        dtype = 0
-    elseif T === Float64
-        dtype = 1
+"""
+    gather_atoms(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
+"""
+function gather_atoms(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
+    dtype = (T === Float64)
+
+    if ids === nothing
+        natoms = get_natoms(lmp)
+        data = Array{T, 2}(undef, (count, natoms))
+        API.lammps_gather_atoms(lmp, name, dtype, count, data)
     else
-        error("Only Int32 or Float64 allowed as T, got $T")
+        ndata = length(ids)
+        data = Array{T, 2}(undef, (count, ndata))
+        API.lammps_gather_atoms_subset(lmp, name, dtype, count, ndata, ids, data)
     end
-    natoms = get_natoms(lmp)
-    data = Array{T, 2}(undef, (count, natoms))
-    API.lammps_gather_atoms(lmp, name, dtype, count, data)
+    
     check(lmp)
     return data
+end
+
+"""
+    gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
+"""
+function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
+    dtype = (T === Float64)
+
+    if ids === nothing
+        natoms = get_natoms(lmp)
+        data = Array{T, 2}(undef, (count, natoms))
+        API.lammps_gather(lmp, name, dtype, count, data)
+    else
+        ndata = length(ids)
+        data = Array{T, 2}(undef, (count, ndata))
+        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
+    end
+    
+    check(lmp)
+    return data
+end
+
+"""
+    scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+"""
+function scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    dtype = (T === Float64)
+
+    if ids === nothing
+        (count, natoms) = size(data)
+        @assert natoms == get_natoms(lmp)
+        API.lammps_scatter(lmp, name, dtype, count, data)
+    else
+        (count, ndata) = size(data)
+        @assert ndata == length(ids)
+        API.lammps_scatter_subset(lmp, name, dtype, count, ndata, ids, data)
+    end
+
+    check(lmp)
+    return nothing
 end
 
 end # module
