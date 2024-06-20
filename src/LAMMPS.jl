@@ -361,40 +361,42 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     end
 end
 
-"""
-    gather_atoms(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
-"""
-function gather_atoms(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
-    dtype = (T === Float64)
+function gather(lmp::LMP, name::String;
+    T::Union{Type{Int32}, Type{Float64}, Nothing}=nothing,
+    count::Union{Nothing, Integer}=nothing,
+    ids::Union{Nothing, Array{Int32}}=nothing,
+    )
 
-    if ids === nothing
-        natoms = get_natoms(lmp)
-        data = Array{T, 2}(undef, (count, natoms))
-        API.lammps_gather_atoms(lmp, name, dtype, count, data)
+    @assert name !== "mass" "masses can not be gathered. Use `extract_atom` instead!"
+
+    _scatter_gather_check_natoms(lmp)
+
+    _T_count = _name_to_T_and_count(name)
+
+    if !isnothing(_T_count)
+        (_T, _count) = _T_count
+
+        !isnothing(count) && @assert _count == count "the defined count ($count) doesn't match the count ($_count) assotiated with $name"
+        !isnothing(T) && @assert _T === T "the defined data type ($T) doesn't match the data type ($_T) assotiated with `$name`"
     else
-        ndata = length(ids)
-        data = Array{T, 2}(undef, (count, ndata))
-        API.lammps_gather_atoms_subset(lmp, name, dtype, count, ndata, ids, data)
+        @assert !isnothing(count) "count couldn't be determinated through name; It's nessecary to specify it explicitly"
+        @assert !isnothing(T) "type couldn't be determinated through name; It's nessecary to specify it explicitly"
+        
+        (_T, _count) = (T, count)
     end
-    
-    check(lmp)
-    return data
-end
 
-"""
-    gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
-"""
-function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, count::Integer, ids::Union{Nothing, Array{Int32}}=nothing)
-    dtype = (T === Float64)
+    dtype = _T === Float64
+    natoms = get_natoms(lmp)
 
     if ids === nothing
-        natoms = get_natoms(lmp)
-        data = Array{T, 2}(undef, (count, natoms))
-        API.lammps_gather(lmp, name, dtype, count, data)
+        data = Array{_T, 2}(undef, (_count, natoms))
+        API.lammps_gather(lmp, name, dtype, _count, data)
     else
+        @assert all(1 .<= ids .<= natoms)
+
         ndata = length(ids)
-        data = Array{T, 2}(undef, (count, ndata))
-        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
+        data = Array{_T, 2}(undef, (_count, ndata))
+        API.lammps_gather_subset(lmp, name, dtype, _count, ndata, ids, data)
     end
     
     check(lmp)
@@ -404,22 +406,38 @@ end
 """
     scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
 """
-function scatter!(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+function scatter!(lmp::LMP, name::String, data::Array{T}; ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+     @assert name !== "mass" "masses can not be scattered. Use `extract_atom` instead!"
+
+    _scatter_gather_check_natoms(lmp)
+
+    ndata = isnothing(ids) ? get_natoms(lmp) : length(ids)
+    (count, r) = divrem(length(data), ndata)
+    @assert r == 0 "illegal length of data"
+
+    _T_count = _name_to_T_and_count(name)
+
+    if !isnothing(_T_count)
+        (_T, _count) = _T_count
+
+        @assert _T === T "the array data type ($T) doesn't match the data type ($_T) assotiated with $name"
+        @assert _count == count "the length of data ($(count*ndata)) doesn't match the length ($(_count*ndata)) assotiated with `$name`"
+    end
+
     dtype = (T === Float64)
 
     if ids === nothing
-        (count, natoms) = size(data)
-        @assert natoms == get_natoms(lmp)
+        @assert ndata == get_natoms(lmp)
         API.lammps_scatter(lmp, name, dtype, count, data)
     else
-        (count, ndata) = size(data)
-        @assert ndata == length(ids)
+        @assert all(1 .<= ids .<= natoms)
         API.lammps_scatter_subset(lmp, name, dtype, count, ndata, ids, data)
     end
 
     check(lmp)
     return nothing
 end
+
 _scatter_gather_check_natoms(lmp) = @assert get_natoms(lmp) <= typemax(Int32) "scatter/gather operations only work on systems with less than 2^31 atoms!"
 
 function _name_to_T_and_count(name::String)
