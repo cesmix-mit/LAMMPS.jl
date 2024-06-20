@@ -361,6 +361,8 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     end
 end
 
+@deprecate gather_atoms gather
+
 """
     gather(lmp::LMP, name::String,
         T::Union{Nothing, Type{Int32}, Type{Float64}}=nothing,
