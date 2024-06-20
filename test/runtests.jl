@@ -12,7 +12,7 @@ LMP(["-screen", "none"]) do lmp
     @test LAMMPS.version(lmp) >= 0
     command(lmp, "clear")
 
-    @test_throws ErrorException command(lmp, "nonsense")
+    @test_throws LAMMPS.LAMMPSError command(lmp, "nonsense")
 end
 
 @testset "Variables" begin

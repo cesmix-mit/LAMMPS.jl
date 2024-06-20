@@ -102,7 +102,7 @@ end
 function LAMMPSError(lmp::LMP)
     buf = zeros(UInt8, 100)
     API.lammps_get_last_error_message(lmp, buf, length(buf))
-    LAMMPSException(String(buf))
+    LAMMPSError(String(buf))
 end
 
 function Base.showerror(io::IO, err::LAMMPSError)
