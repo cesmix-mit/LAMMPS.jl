@@ -420,5 +420,36 @@ function scatter!(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, A
     check(lmp)
     return nothing
 end
+_scatter_gather_check_natoms(lmp) = @assert get_natoms(lmp) <= typemax(Int32) "scatter/gather operations only work on systems with less than 2^31 atoms!"
+
+function _name_to_T_and_count(name::String)
+    # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
+
+    name == "mass" && return (Float64, 1) # should be handeled seperately
+    name == "id" && return (Int32, 1)
+    name == "type" && return (Int32, 1)
+    name == "mask" && return (Int32, 1)
+    name == "image" && return (Int32, 1)
+    name == "x" && return (Float64, 3)
+    name == "v" && return (Float64, 3)
+    name == "f" && return (Float64, 3)
+    name == "molecule" && return (Int32, 1)
+    name == "q" && return (Float64, 1)
+    name == "mu" && return (Float64, 3)
+    name == "omega" && return (Float64, 3)
+    name == "angmom" && return (Float64, 3)
+    name == "torque" && return (Float64, 3)
+    name == "radius" && return (Float64, 1)
+    name == "rmass" && return (Float64, 1)
+    name == "ellipsoid" && return (Int32, 1)
+    name == "line" && return (Int32, 1)
+    name == "tri" && return (Int32, 1)
+    name == "body" && return (Int32, 1)
+    name == "quat" && return (Float64, 4)
+    name == "temperature" && return (Float64, 1)
+    name == "heatflow" && return (Float64, 1)
+
+    return nothing
+end
 
 end # module
