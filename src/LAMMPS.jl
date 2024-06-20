@@ -361,9 +361,9 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     end
 end
 
-function gather(lmp::LMP, name::String;
+function gather(lmp::LMP, name::String,
     T::Union{Type{Int32}, Type{Float64}, Nothing}=nothing,
-    count::Union{Nothing, Integer}=nothing,
+    count::Union{Nothing, Integer}=nothing;
     ids::Union{Nothing, Array{Int32}}=nothing,
     )
 
