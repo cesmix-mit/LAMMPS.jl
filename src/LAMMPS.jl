@@ -3,7 +3,7 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather_atoms, gather, scatter
+       gather_atoms, gather, scatter!
 
 using Preferences
 
@@ -404,7 +404,7 @@ end
 """
     scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
 """
-function scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+function scatter!(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     dtype = (T === Float64)
 
     if ids === nothing
