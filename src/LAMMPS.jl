@@ -361,6 +361,21 @@ function extract_variable(lmp::LMP, name::String, group=nothing)
     end
 end
 
+"""
+    gather(lmp::LMP, name::String,
+        T::Union{Nothing, Type{Int32}, Type{Float64}}=nothing,
+        count::Union{Nothing, Integer}=nothing;
+        ids::Union{Nothing, Array{Int32}}=nothing,
+        )
+
+Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes.
+By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
+The optional parameter `ids` determines for which subset of atoms the requested data will be gathered. The returned data will then be ordered according to `ids`
+
+`T` and `count` are not optional for fix or compute entities.
+
+The returned Array is decoupled from the internal state of the LAMMPS instance.
+"""
 function gather(lmp::LMP, name::String,
     T::Union{Type{Int32}, Type{Float64}, Nothing}=nothing,
     count::Union{Nothing, Integer}=nothing;
@@ -404,7 +419,11 @@ function gather(lmp::LMP, name::String,
 end
 
 """
-    scatter(lmp::LMP, name::String, data::Matrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::Array{T}; ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+
+Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
+By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
+The optional parameter `ids` determines to which subset of atoms the data will be scattered.
 """
 function scatter!(lmp::LMP, name::String, data::Array{T}; ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
      @assert name !== "mass" "masses can not be scattered. Use `extract_atom` instead!"
