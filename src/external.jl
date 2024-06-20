@@ -18,7 +18,9 @@ mutable struct FixExternal
         API.lammps_set_fix_external_callback(lmp, name, callback, ctx)
 
         # Ensure function is compiled before timestep 0
-        @assert precompile(this.callback, (FixExternal, Int, Int, Int, Vector{Int32}, Matrix{Float64}, Matrix{Float64}))
+        if !precompile(this.callback, (FixExternal, Int, Int, Int, Vector{Int32}, Matrix{Float64}, Matrix{Float64}))
+            @warn "Failed to precompile the callback" this.callback
+        end
         return this
     end
 end
