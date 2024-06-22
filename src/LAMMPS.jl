@@ -386,6 +386,8 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
+    @assert name != "mass" "scattering/gathering mass is currently not supported! Use `extract_atom()` instead."
+
     count = _get_count(lmp, name)
     _T = _get_T(lmp, name)
 
@@ -427,6 +429,8 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    @assert name != "mass" "scattering/gathering mass is currently not supported! Use `extract_atom()` instead."
+
     count = _get_count(lmp, name)
     _T = _get_T(lmp, name)
 
