@@ -375,5 +375,52 @@ function gather_atoms(lmp::LMP, name, T, count)
     check(lmp)
     return data
 end
+function _get_count(lmp::LMP, name::String)
+    # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
+
+    if startswith(name, r"[f,c]_")
+        if name[1] == 'c'
+            API.lammps_has_id(lmp, "compute", name[3:end]) != 1 && error("Unknown per atom compute $name")
+
+            count_ptr = API.lammps_extract_compute(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
+        else
+            API.lammps_has_id(lmp, "fix", name[3:end]) != 1 && error("Unknown per atom fix $name")
+
+            count_ptr = API.lammps_extract_fix(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
+        end
+        check(lmp)
+
+        count_ptr = reinterpret(Ptr{Cint}, count_ptr)
+        count = unsafe_load(count_ptr)
+    
+        return count == 0 ? 1 : count
+    elseif name in ("mass", "id", "type", "mask", "image", "molecule", "q", "radius", "rmass", "ellipsoid", "line", "tri", "body", "temperature", "heatflow")
+        return 1
+    elseif name in ("x", "v", "f", "mu", "omega", "angmom", "torque")
+        return 3
+    elseif name == "quat"
+        return 4
+    else
+        error("Unknown per atom property $name")
+    end
+end
+
+function _get_T(lmp::LMP, name::String)
+    if startswith(name, r"[f,c]_")
+        return missing # As far as I know, it's not possible to determine the datatype of computes or fixes at runtime
+    end
+
+    type = API.lammps_extract_atom_datatype(lmp, name)
+    check(lmp)
+
+    if type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
+        return Int32
+    elseif type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
+        return Float64
+    else
+        error("Unkown per atom property $name")
+    end
+
+end
 
 end # module
