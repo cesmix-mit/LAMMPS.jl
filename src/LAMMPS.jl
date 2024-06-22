@@ -453,6 +453,7 @@ function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing,
 
     check(lmp)
 end
+
 function _get_count(lmp::LMP, name::String)
     # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
 
