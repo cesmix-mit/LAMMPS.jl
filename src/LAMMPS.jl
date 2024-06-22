@@ -3,7 +3,7 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather_atoms
+       gather, scatter!
 
 using Preferences
 
