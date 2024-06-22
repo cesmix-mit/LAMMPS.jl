@@ -476,6 +476,7 @@ function _get_count(lmp::LMP, name::String)
         count_ptr = reinterpret(Ptr{Cint}, count_ptr)
         count = unsafe_load(count_ptr)
     
+        # a count of 0 indicates that the entity is a vector. In order to perserve type stability we just treat that as a 1xN Matrix.
         return count == 0 ? 1 : count
     elseif name in ("mass", "id", "type", "mask", "image", "molecule", "q", "radius", "rmass", "ellipsoid", "line", "tri", "body", "temperature", "heatflow")
         return 1
