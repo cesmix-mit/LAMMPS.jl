@@ -49,6 +49,7 @@ end
 
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
+    external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         if !isempty(args)
@@ -67,7 +68,7 @@ mutable struct LMP
             end
         end
 
-        this = new(handle)
+        this = new(handle, Dict{String, Any}())
         finalizer(close!, this)
         return this
     end
@@ -82,8 +83,10 @@ Shutdown an LMP instance.
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
-       API.lammps_close(handle)
+        empty!(lmp.external_fixes)
+        API.lammps_close(handle)
     end
+    return nothing
 end
 
 function LMP(f::Function, args=String[], comm=nothing)
@@ -154,6 +157,7 @@ end
 function extract_global(lmp::LMP, name, dtype=nothing)
     if dtype === nothing
         dtype = API.lammps_extract_global_datatype(lmp, name)
+        dtype == -1 && error("Could not find dataype for global $name")
     end
     dtype = API._LMP_DATATYPE_CONST(dtype)
     type = dtype2type(dtype)
@@ -198,6 +202,7 @@ function extract_atom(lmp::LMP, name,
 
     if dtype === nothing
         dtype = API.lammps_extract_atom_datatype(lmp, name)
+        dtype == -1 && error("Could not find dataype for atom $name")
         dtype = API._LMP_DATATYPE_CONST(dtype)
     end
 
@@ -504,7 +509,47 @@ function _get_T(lmp::LMP, name::String)
     else
         error("Unkown per atom property $name")
     end
-
 end
+
+function extract_setting(lmp, name)
+    val = API.lammps_extract_setting(lmp, name)
+    val == -1 && error("Could not find setting $name")
+    return val
+end
+
+function pair_neighbor_list(lmp, name, exact, nsub, request)
+    idx = API.lammps_find_pair_neighlist(lmp, name, exact, nsub, request)
+    if idx == -1
+        error("Could not find neighbor list for pair $(name)")
+    end
+    return idx
+end
+
+function fix_neighbor_list(lmp, name, request)
+    idx = API.lammps_find_fix_neighlist(lmp, name, request)
+    if idx == -1
+        error("Could not find neighbor list for fix $(name)")
+    end
+    return idx
+end
+
+
+"""
+    neighbors(lmb::LMP, idx, element)
+
+Given a neighbor list `idx` and the element therein,
+return the atom index, and it's neigbors.
+"""
+function neighbors(lmp, idx, element)
+    r_iatom = Ref{Cint}()
+    r_numneigh = Ref{Cint}()
+    r_neighbors = Ref{Ptr{Cint}}(0)
+
+    API.lammps_neighlist_element_neighbors(lmp, idx, element - 1, r_iatom, r_numneigh, r_neighbors)
+
+    return Int(r_iatom[]), Base.unsafe_wrap(Array, r_neighbors[], r_numneigh[]; own = false)
+end
+
+include("external.jl")
 
 end # module

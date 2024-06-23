@@ -15,6 +15,16 @@ LMP(["-screen", "none"]) do lmp
     @test_throws ErrorException command(lmp, "nonsense")
 end
 
+
+function f()
+    lmp = LMP(["-screen", "none"])
+    @test LAMMPS.version(lmp) >= 0
+    command(lmp, "clear")
+    @test_throws ErrorException command(lmp, "nonsense")
+    LAMMPS.close!(lmp)
+end
+
+
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, "box tilt large")
@@ -101,4 +111,21 @@ end
     end
 end
 
+LMP(["-screen", "none"]) do lmp
+    called = Ref(false)
+    command(lmp, "boundary p p p")
+    command(lmp, "region cell block 0 1 0 1 0 1 units box")
+    command(lmp, "create_box 1 cell")
+    command(lmp, "fix julia all external pf/callback 1 1")
+    LAMMPS.FixExternal(lmp, "julia") do fix, timestep, nlocal, nghost, ids, x, fexternal
+       LAMMPS.energy_global!(fix, 0.0)
+       called[] = true
+    end
+    command(lmp, "mass 1 1.0")
+    command(lmp, "run 0")
+    @test called[] == true
+end
+
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+
+include("external_pair.jl")
