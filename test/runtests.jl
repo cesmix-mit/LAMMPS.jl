@@ -101,4 +101,39 @@ end
     end
 end
 
+@testset "Utilities" begin
+    LMP(["-screen", "none"]) do lmp
+        # setting up example data
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 2 0 2 0 2
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            group a id 1 2 3 5 8
+            group even id 2 4 6 8
+            group odd id 1 3 5 7
+        """)
+
+        @test group_to_atom_ids(lmp, "all") == 1:8
+        @test group_to_atom_ids(lmp, "a") == [1, 2, 3, 5, 8]
+        @test group_to_atom_ids(lmp, "even") == [2, 4, 6, 8]
+        @test group_to_atom_ids(lmp, "odd") == [1, 3, 5, 7]
+        @test_throws ErrorException group_to_atom_ids(lmp, "nonesense")
+
+        command(lmp, [
+            "compute pos all property/atom x y z",
+            "fix 1 all ave/atom 10 1 10 c_pos[*]",
+            "run 10"
+        ])
+
+        @test get_category_ids(lmp, "group") == ["all", "a", "even", "odd"]
+        @test get_category_ids(lmp, "compute") == ["thermo_temp", "thermo_press", "thermo_pe", "pos"] # some of these computes are there by default it seems
+        @test get_category_ids(lmp, "fix") == ["1"]
+        @test_throws ErrorException get_category_ids(lmp, "nonesense")
+    end
+end
+
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
