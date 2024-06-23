@@ -107,12 +107,32 @@ end
 
 
 """
-    command(lmp::lmp, cmd)
+    command(lmp::LMP, cmd::Union{String, Array{String}})
+
+Process LAMMPS input commands from a String or from an Array of Strings.
+
+For a full list of commands see: https://docs.lammps.org/commands_list.html
+
+This function processes a multi-line string similar to a block of commands from a file.
+The string may have multiple lines (separated by newline characters) and also single commands may
+be distributed over multiple lines with continuation characters (’&’).
+Those lines are combined by removing the ‘&’ and the following newline character.
+After this processing the string is handed to LAMMPS for parsing and executing.
+
+Arrays of Strings get concatenated into a single String inserting newline characters as needed.
+
+!!! warn "Newline Characters"
+    Old versions of this package (0.4.0 or older) used to ignore newline characters,
+    such that `cmd` would allways be treated as a single command. In newer version this is no longer the case.
 """
-function command(lmp::LMP, cmd)
-    ptr = API.lammps_command(lmp, cmd)
-    ptr == C_NULL && check(lmp)
-    nothing
+function command(lmp::LMP, cmd::Union{String, Array{String}})
+    if cmd isa String
+        API.lammps_commands_string(lmp, cmd)
+    else
+        API.lammps_commands_list(lmp, length(cmd), cmd)
+    end
+
+    check(lmp)
 end
 
 """
