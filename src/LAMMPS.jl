@@ -527,4 +527,59 @@ function _get_T(lmp::LMP, name::String)
 
 end
 
+"""
+    group_to_atom_ids(lmp::LMP, group::String)
+
+Find the IDs of the Atoms in the group.
+"""
+function group_to_atom_ids(lmp::LMP, group::String)
+    # Pad with '\0' to avoid confusion with groups names that are truncated versions of name
+    # For example 'all' could be confused with 'a'
+    name_padded = codeunits(group * '\0')
+    buffer_size = length(name_padded)
+    buffer = zeros(UInt8, buffer_size)
+
+    ngroups = API.lammps_id_count(lmp, "group")
+    
+    for idx in 0:ngroups-1
+        API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
+        buffer != name_padded && continue
+
+        mask = gather(lmp, "mask", Int32)[:] .& (1 << idx) .!= 0
+        all_ids = UnitRange{Int32}(1, get_natoms(lmp))
+
+        return all_ids[mask]
+    end
+
+    error("Cannot find group $group")
+end
+
+
+"""
+    get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+
+Look up the names of entities within a certain category.
+
+Valid categories are: compute, dump, fix, group, molecule, region, and variable.
+names longer than `buffer_size` will be truncated to fit inside the buffer.
+"""
+function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+    _check_valid_category(category)
+
+    count = API.lammps_id_count(lmp, category)
+    check(lmp)
+
+    res = Vector{String}(undef, count)
+
+    for i in 1:count
+        buffer = zeros(UInt8, buffer_size)
+        API.lammps_id_name(lmp, category, i-1, buffer, buffer_size)
+        res[i] = rstrip(String(buffer), '\0')
+    end
+
+    return res
+end
+
+_check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
+
 end # module
