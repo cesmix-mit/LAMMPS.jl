@@ -47,6 +47,11 @@ function set_library!(path)
     end
 end
 
+"""
+    LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
+
+Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
+"""
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
 
@@ -77,7 +82,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 """
     close!(lmp::LMP)
 
-Shutdown an LMP instance.
+Shutdown an LAMMPS instance.
 """
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
@@ -86,6 +91,12 @@ function close!(lmp::LMP)
     end
 end
 
+"""
+    LMP(f::Function, args=String[], comm=nothing)
+
+Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
+This constructor closes the LAMMPS instance immediately after `f` has executed.
+"""
 function LMP(f::Function, args=String[], comm=nothing)
     lmp = LMP(args, comm)
     result = f(lmp)
