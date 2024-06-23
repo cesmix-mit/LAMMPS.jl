@@ -88,7 +88,9 @@ end
 
 function LMP(f::Function, args=String[], comm=nothing)
     lmp = LMP(args, comm)
-    f(lmp)
+    result = f(lmp)
+    close!(lmp)
+    return result
 end
 
 function version(lmp::LMP)
