@@ -101,7 +101,7 @@ function check(lmp::LMP)
         # TODO: Check err == 1 or err == 2 (MPI)
         buf = zeros(UInt8, 100)
         API.lammps_get_last_error_message(lmp, buf, length(buf))
-        error(String(buf))
+        error(rstrip(String(buf), '\0'))
     end
 end
 
