@@ -136,7 +136,7 @@ After this processing the string is handed to LAMMPS for parsing and executing.
 
 Arrays of Strings get concatenated into a single String inserting newline characters as needed.
 
-!!! warn "Newline Characters"
+!!! warning "Newline Characters"
     Old versions of this package (0.4.0 or older) used to ignore newline characters,
     such that `cmd` would allways be treated as a single command. In newer version this is no longer the case.
 """
