@@ -13,8 +13,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
         with:
-          version: "1.8"
-        shell: bash
+          version: "1"
       - name: instantiate docs
         run: |
           julia --project=docs -e '
