@@ -42,5 +42,5 @@ command(lmp, "compute pot_e all pe")
 command(lmp, "run 0")
 
 # extract output
-forces = extract_atom(lmp, "f")
-energies = extract_compute(lmp, "pot_e", LAMMPS.API.LMP_STYLE_GLOBAL, LAMMPS.API.LMP_TYPE_SCALAR)
+forces = gather(lmp, "f")
+energies = gather(lmp, "pot_e")
