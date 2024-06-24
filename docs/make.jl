@@ -47,7 +47,6 @@ makedocs(;
     plugins = [bib],
     doctest = true,
     linkcheck = true,
-    strict = true,
 )
 
 deploydocs(;
