@@ -21,16 +21,13 @@ using LAMMPS
 const DATA = joinpath(dirname(pathof(LAMMPS)), "..", "examples", "example_GaN_data")
 
 function run_snap(lmp, path, rcut, twojmax)
-    read_data_str = "read_data " * path
-
-
     command(lmp, """
         log none
         units metal
         boundary p p p
         atom_style atomic
         atom_modify map array
-        ead_data_st
+        read_data $path
         pair_style zero $rcut
         pair_coeff * *
         compute PE all pe
