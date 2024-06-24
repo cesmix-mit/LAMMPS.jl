@@ -28,7 +28,7 @@ end
 
 examples = [title=>joinpath("generated", string(name, ".md")) for (title, name) in examples]
 
-makedocs(bib;
+makedocs(;
     modules=[LAMMPS],
     authors="CESMIX-MIT",
     repo="https://github.com/cesmix-mit/LAMMPS.jl/blob/{commit}{path}#{line}",
@@ -44,6 +44,7 @@ makedocs(bib;
         "Examples" => examples,
         "API" => "api.md",
     ],
+    plugins = [bib],
     doctest = true,
     linkcheck = true,
     strict = true,
