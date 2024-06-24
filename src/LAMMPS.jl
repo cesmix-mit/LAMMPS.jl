@@ -3,7 +3,7 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather, scatter!
+       gather, scatter!, group_to_atom_ids, get_category_ids
 
 using Preferences
 
@@ -47,6 +47,13 @@ function set_library!(path)
     end
 end
 
+"""
+    LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
+
+Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
+
+For a full ist of Command-line options see: https://docs.lammps.org/Run_options.html
+"""
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
 
@@ -77,7 +84,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 """
     close!(lmp::LMP)
 
-Shutdown an LMP instance.
+Shutdown a LAMMPS instance.
 """
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
@@ -86,9 +93,17 @@ function close!(lmp::LMP)
     end
 end
 
+"""
+    LMP(f::Function, args=String[], comm=nothing)
+
+Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
+This constructor closes the LAMMPS instance immediately after `f` has executed.
+"""
 function LMP(f::Function, args=String[], comm=nothing)
     lmp = LMP(args, comm)
-    f(lmp)
+    result = f(lmp)
+    close!(lmp)
+    return result
 end
 
 function version(lmp::LMP)
@@ -101,18 +116,38 @@ function check(lmp::LMP)
         # TODO: Check err == 1 or err == 2 (MPI)
         buf = zeros(UInt8, 100)
         API.lammps_get_last_error_message(lmp, buf, length(buf))
-        error(String(buf))
+        error(rstrip(String(buf), '\0'))
     end
 end
 
 
 """
-    command(lmp::lmp, cmd)
+    command(lmp::LMP, cmd::Union{String, Array{String}})
+
+Process LAMMPS input commands from a String or from an Array of Strings.
+
+For a full list of commands see: https://docs.lammps.org/commands_list.html
+
+This function processes a multi-line string similar to a block of commands from a file.
+The string may have multiple lines (separated by newline characters) and also single commands may
+be distributed over multiple lines with continuation characters (’&’).
+Those lines are combined by removing the ‘&’ and the following newline character.
+After this processing the string is handed to LAMMPS for parsing and executing.
+
+Arrays of Strings get concatenated into a single String inserting newline characters as needed.
+
+!!! warning "Newline Characters"
+    Old versions of this package (0.4.0 or older) used to ignore newline characters,
+    such that `cmd` would allways be treated as a single command. In newer version this is no longer the case.
 """
-function command(lmp::LMP, cmd)
-    ptr = API.lammps_command(lmp, cmd)
-    ptr == C_NULL && check(lmp)
-    nothing
+function command(lmp::LMP, cmd::Union{String, Array{String}})
+    if cmd isa String
+        API.lammps_commands_string(lmp, cmd)
+    else
+        API.lammps_commands_list(lmp, length(cmd), cmd)
+    end
+
+    check(lmp)
 end
 
 """
@@ -506,5 +541,60 @@ function _get_T(lmp::LMP, name::String)
     end
 
 end
+
+"""
+    group_to_atom_ids(lmp::LMP, group::String)
+
+Find the IDs of the Atoms in the group.
+"""
+function group_to_atom_ids(lmp::LMP, group::String)
+    # Pad with '\0' to avoid confusion with groups names that are truncated versions of name
+    # For example 'all' could be confused with 'a'
+    name_padded = codeunits(group * '\0')
+    buffer_size = length(name_padded)
+    buffer = zeros(UInt8, buffer_size)
+
+    ngroups = API.lammps_id_count(lmp, "group")
+    
+    for idx in 0:ngroups-1
+        API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
+        buffer != name_padded && continue
+
+        mask = gather(lmp, "mask", Int32)[:] .& (1 << idx) .!= 0
+        all_ids = UnitRange{Int32}(1, get_natoms(lmp))
+
+        return all_ids[mask]
+    end
+
+    error("Cannot find group $group")
+end
+
+
+"""
+    get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+
+Look up the names of entities within a certain category.
+
+Valid categories are: compute, dump, fix, group, molecule, region, and variable.
+names longer than `buffer_size` will be truncated to fit inside the buffer.
+"""
+function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+    _check_valid_category(category)
+
+    count = API.lammps_id_count(lmp, category)
+    check(lmp)
+
+    res = Vector{String}(undef, count)
+
+    for i in 1:count
+        buffer = zeros(UInt8, buffer_size)
+        API.lammps_id_name(lmp, category, i-1, buffer, buffer_size)
+        res[i] = rstrip(String(buffer), '\0')
+    end
+
+    return res
+end
+
+_check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
 
 end # module
