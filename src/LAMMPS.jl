@@ -51,6 +51,8 @@ end
     LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
+
+For a full ist of Command-line options see: https://docs.lammps.org/Run_options.html
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
