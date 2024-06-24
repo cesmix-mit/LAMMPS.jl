@@ -82,7 +82,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 """
     close!(lmp::LMP)
 
-Shutdown an LAMMPS instance.
+Shutdown a LAMMPS instance.
 """
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
