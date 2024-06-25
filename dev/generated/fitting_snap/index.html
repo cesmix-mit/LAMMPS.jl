@@ -25,26 +25,26 @@ using Printf</code></pre><h2 id="Estimation-of-the-SNAP-coefficients"><a class="
    \end{pmatrix}
 \end{equation*}\]</p><h1 id="Calculate-A-using-snap.jl"><a class="docs-heading-anchor" href="#Calculate-A-using-snap.jl">Calculate <span>$A$</span> using <code>snap.jl</code></a><a id="Calculate-A-using-snap.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-A-using-snap.jl" title="Permalink"></a></h1><p>This example only fits the energy, thus, the first block of the matrix A.</p><pre><code class="language-julia hljs">include(joinpath(dirname(pathof(LAMMPS)), &quot;..&quot;, &quot;examples&quot;, &quot;snap.jl&quot;))
 A</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">48×62 Matrix{Float64}:
- 96.0  1268.56  179.99    95.7371  …  2456.8   505.481  1180.76  588.742
- 96.0  1232.05  180.321   98.2362     2471.63  485.186  1121.6   628.232
- 96.0  1233.47  181.965   99.2062     2464.54  493.966  1129.54  622.432
- 96.0  1230.42  181.275   99.0966     2469.42  487.744  1123.71  631.515
- 96.0  1242.9   180.96    98.0546     2459.75  484.421  1118.49  619.254
- 96.0  1241.51  181.31    98.591   …  2464.78  489.073  1127.16  628.265
- 96.0  1241.98  180.79    98.564      2468.7   487.096  1121.25  626.139
- 96.0  1236.88  180.032   98.7195     2463.01  482.35   1123.4   615.613
- 96.0  1237.41  182.046   99.6062     2468.71  486.223  1125.12  627.154
- 96.0  1263.53  179.629   96.9368     2446.69  492.439  1118.71  638.553
-  ⋮                                ⋱                       ⋮     
- 96.0  1246.81  179.354   97.0562     2454.09  487.691  1115.08  635.468
- 96.0  1215.71  180.14   100.005   …  2492.05  476.942  1129.5   620.025
- 96.0  1224.95  181.285  100.364      2495.72  480.637  1128.91  628.191
- 96.0  1253.96  182.729   99.1891     2462.51  493.417  1124.83  636.328
- 96.0  1241.59  180.517   98.7144     2457.39  484.243  1124.85  611.408
- 96.0  1234.41  180.926   98.7391     2476.5   489.552  1129.21  625.961
- 96.0  1238.05  179.305   97.9326  …  2466.85  487.825  1121.67  631.409
- 96.0  1241.42  181.616   99.2904     2464.63  488.513  1126.73  620.722
- 96.0  1245.59  179.955   97.9024     2465.35  484.987  1124.75  629.313</code></pre><h1 id="Calculate-y"><a class="docs-heading-anchor" href="#Calculate-y">Calculate <span>$y$</span></a><a id="Calculate-y-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-y" title="Permalink"></a></h1><p>A molecular mechanics model for the interaction of gallium and nitride is used to generate surrogate DFT data (see 10.1088/1361-648x/ab6cbe). The total potential energy is computed for each configuration</p><p class="math-container">\[E = \sum_{i \lt j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  \text{ where } \\
+ 96.0  714.892  175.705  125.324  …  3157.79  330.568  1336.49  432.028
+ 96.0  741.638  171.502  122.601     3101.62  340.641  1254.11  545.843
+ 96.0  736.281  172.097  123.056     3099.71  340.618  1260.01  536.707
+ 96.0  736.39   172.848  123.5       3100.18  340.488  1254.05  548.47
+ 96.0  743.85   171.078  122.015     3097.8   339.628  1250.89  543.843
+ 96.0  736.916  172.51   123.381  …  3101.99  340.895  1256.86  546.525
+ 96.0  743.904  170.969  122.077     3099.39  341.379  1251.63  549.245
+ 96.0  738.596  171.981  122.985     3104.01  336.768  1259.6   535.521
+ 96.0  739.471  172.462  123.217     3107.2   338.89   1259.06  548.391
+ 96.0  740.706  171.673  122.861     3105.18  341.492  1255.34  551.494
+  ⋮                               ⋱                       ⋮     
+ 96.0  743.088  171.117  122.303     3101.88  344.48   1252.19  555.025
+ 96.0  737.216  172.745  123.571  …  3102.71  337.652  1256.42  545.619
+ 96.0  738.869  173.318  123.551     3103.85  334.767  1252.77  547.766
+ 96.0  741.594  171.769  122.864     3111.31  342.38   1257.92  557.53
+ 96.0  737.911  171.982  122.856     3104.09  340.038  1259.47  536.737
+ 96.0  738.979  171.821  122.92      3109.29  341.452  1259.55  545.03
+ 96.0  741.679  170.768  122.231  …  3100.44  343.354  1254.12  548.632
+ 96.0  737.134  172.699  123.294     3097.01  336.846  1253.92  539.131
+ 96.0  738.856  172.706  123.366     3104.08  340.743  1254.96  551.47</code></pre><h1 id="Calculate-y"><a class="docs-heading-anchor" href="#Calculate-y">Calculate <span>$y$</span></a><a id="Calculate-y-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-y" title="Permalink"></a></h1><p>A molecular mechanics model for the interaction of gallium and nitride is used to generate surrogate DFT data (see 10.1088/1361-648x/ab6cbe). The total potential energy is computed for each configuration</p><p class="math-container">\[E = \sum_{i \lt j;  r_{i,j} \leq rcut } E_{GaN}(r_{i,j}) \  \text{ where } \\
 
 E_{GaN}(r_{i,j}) =
 \left\{
@@ -138,26 +138,26 @@ y = calc_y(rcut, M1, N, ε_Ga_Ga, σ_Ga_Ga, ε_N_N, σ_N_N, A_Ga_N, ρ_Ga_N, E_r
  1715.5343234240943</code></pre><h2 id="Calculate-the-optimal-solution"><a class="docs-heading-anchor" href="#Calculate-the-optimal-solution">Calculate the optimal solution</a><a id="Calculate-the-optimal-solution-1"></a><a class="docs-heading-anchor-permalink" href="#Calculate-the-optimal-solution" title="Permalink"></a></h2><p>The optimal solution <span>$\widehat{\mathbf{\beta}}$</span> is, thus:</p><p class="math-container">\[\begin{equation*}
     \widehat{\mathbf{\beta}} = \mathrm{argmin}_{\mathbf{\beta}} ||\mathbf{A \cdot \boldsymbol{\beta} - y}||^2 = \mathbf{A^{-1} \cdot y}
 \end{equation*}\]</p><pre><code class="language-julia hljs">β = A \ y</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">62-element Vector{Float64}:
-   3.183178975390384
-   0.8023162543479341
- -14.628057637959426
-  60.4335065671453
-  83.71758732407619
-  72.40314826113519
- -39.646739271811064
-   0.786247745557695
- -21.489753366072097
- -52.53267165358688
-   ⋮
- -49.634532481623815
-  76.21359346434065
-  29.215880892466927
-  71.39717173822558
- -37.69844348458079
- -30.938195928683587
-  17.863562893638797
-  48.21875557473351
- -29.30519343822415</code></pre><h2 id="Check-results"><a class="docs-heading-anchor" href="#Check-results">Check results</a><a id="Check-results-1"></a><a class="docs-heading-anchor-permalink" href="#Check-results" title="Permalink"></a></h2><p>The local energy can be decomposed into separate contributions for each atom. SNAP energy can be written in terms of the bispectrum components of the atoms and a set of coefficients. <span>$K$</span> components of the bispectrum are considered so that <span>$\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}$</span> for each atom <span>$i$</span>, whose SNAP energy is computed as follows:</p><p class="math-container">\[   E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \boldsymbol{\tilde{\beta}}^{\alpha_i} \cdot \mathbf{B}^i\]</p><p>where <span>$\alpha_i$</span> depends on the atom type.</p><pre><code class="language-julia hljs">function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
+   10.186840372409128
+ -153.97924361444737
+   32.105482990505585
+  -48.040124411822326
+   92.71701861106854
+   -5.5374135409148195
+  193.0568779355885
+ -123.4210657200344
+ -130.9828131774663
+  -90.14059965823128
+    ⋮
+ -195.9265740329176
+  174.71930890601402
+   75.46114960910315
+   20.530494605269546
+  -89.75357933645647
+  -77.4138645009578
+   30.71316571463391
+  107.16067919386244
+  -13.9531148168796</code></pre><h2 id="Check-results"><a class="docs-heading-anchor" href="#Check-results">Check results</a><a id="Check-results-1"></a><a class="docs-heading-anchor-permalink" href="#Check-results" title="Permalink"></a></h2><p>The local energy can be decomposed into separate contributions for each atom. SNAP energy can be written in terms of the bispectrum components of the atoms and a set of coefficients. <span>$K$</span> components of the bispectrum are considered so that <span>$\mathbf{B}^{i}=\{ B^i_1, \dots, B_K^i\}$</span> for each atom <span>$i$</span>, whose SNAP energy is computed as follows:</p><p class="math-container">\[   E^i_{\rm SNAP}(\mathbf{B}^i) = \beta_0^{\alpha_i} + \sum_{k=1}^K \beta_k^{\alpha_i} B_k^i =  \beta_0^{\alpha_i} + \boldsymbol{\tilde{\beta}}^{\alpha_i} \cdot \mathbf{B}^i\]</p><p>where <span>$\alpha_i$</span> depends on the atom type.</p><pre><code class="language-julia hljs">function calc_fitted_tot_energy(path, β, ncoeff, N1, N)
     # Calculate y
     lmp = LMP([&quot;-screen&quot;,&quot;none&quot;])
     bs = run_snap(lmp, path, rcut, twojmax)
@@ -190,16 +190,16 @@ for m = M1+1:M2
     @printf(&quot;%0.2f, %0.2f, %0.2f\n&quot;, E_tot, E_tot_fit,
             abs(E_tot - E_tot_fit) / E_tot * 100.)
 end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Potential Energy, Fitted Potential Energy, Error (%)
-1695.02, 1721.56, 1.57
-1716.77, 1625.86, 5.30
-1727.48, 1739.46, 0.69
-1690.29, 1730.16, 2.36
-1709.51, 1766.40, 3.33
-1749.57, 1695.72, 3.08
-1752.94, 1712.39, 2.31
-1765.52, 1670.54, 5.38
-1725.46, 1744.22, 1.09
-1732.92, 1748.40, 0.89
-1687.87, 1692.51, 0.27
-1726.56, 1756.36, 1.73
-1685.35, 1747.74, 3.70</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snap/">« Basic SNAP</a><a class="docs-footer-nextpage" href="../../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Monday 24 June 2024 15:13">Monday 24 June 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+1695.02, 1668.98, 1.54
+1716.77, 1746.47, 1.73
+1727.48, 1756.01, 1.65
+1690.29, 1646.75, 2.58
+1709.51, 1654.80, 3.20
+1749.57, 1695.39, 3.10
+1752.94, 1767.68, 0.84
+1765.52, 1728.84, 2.08
+1725.46, 1628.16, 5.64
+1732.92, 1688.68, 2.55
+1687.87, 1712.33, 1.45
+1726.56, 1611.73, 6.65
+1685.35, 1731.82, 2.76</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snap/">« Basic SNAP</a><a class="docs-footer-nextpage" href="../../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Tuesday 25 June 2024 20:27">Tuesday 25 June 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
