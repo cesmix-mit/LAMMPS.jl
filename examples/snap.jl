@@ -40,7 +40,7 @@ function run_snap(lmp, path, rcut, twojmax)
     """)
 
     ## Extract bispectrum
-    bs = gather(lmp, "SNA", Float64)
+    bs = gather(lmp, "c_SNA", Float64)
     return bs
 end
 
