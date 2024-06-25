@@ -136,9 +136,28 @@ After this processing the string is handed to LAMMPS for parsing and executing.
 
 Arrays of Strings get concatenated into a single String inserting newline characters as needed.
 
-!!! warning "Newline Characters"
-    Old versions of this package (0.4.0 or older) used to ignore newline characters,
-    such that `cmd` would allways be treated as a single command. In newer version this is no longer the case.
+!!! compat "LAMMPS.jl 0.4.1"
+    Multiline string support `\"""` and support for array of strings was added.
+    Prior versions of LAMMPS.jl ignore newline characters.
+
+# Examples
+
+```
+LMP(["-screen", "none"]) do lmp
+    command(lmp, \"""
+        atom_modify map yes
+        region cell block 0 2 0 2 0 2
+        create_box 1 cell
+        lattice sc 1
+        create_atoms 1 region cell
+        mass 1 1
+
+        group a id 1 2 3 5 8
+        group even id 2 4 6 8
+        group odd id 1 3 5 7
+    \""")
+end
+```
 """
 function command(lmp::LMP, cmd::Union{String, Array{String}})
     if cmd isa String
