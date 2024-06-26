@@ -275,6 +275,7 @@ function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
     T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
+
 is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
@@ -365,82 +366,38 @@ function extract_atom_datatype(lmp::LMP, name)
     return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(lmp, name))
 end
 
-function unsafe_extract_compute(lmp::LMP, name, style, type)
-    if type == API.LMP_TYPE_SCALAR
-        if style == API.LMP_STYLE_GLOBAL
-            dtype = Ptr{Float64}
-        elseif style == API.LMP_STYLE_LOCAL
-            dtype = Ptr{Cint}
-        elseif style == API.LMP_STYLE_ATOM
-            return nothing
-        end
-        extract = true
-    elseif type == API.LMP_TYPE_VECTOR
-        dtype = Ptr{Float64}
-        extract = false
-    elseif type == API.LMP_TYPE_ARRAY
-        dtype = Ptr{Ptr{Float64}}
-        extract = false
-    elseif type == API.LMP_SIZE_COLS
-        dtype = Ptr{Cint}
-        extract = true
-    elseif type == API.LMP_SIZE_ROWS ||
-           type == API.LMP_SIZE_VECTOR
-        if style == API.LMP_STYLE_ATOM
-            return nothing
-        end
-        dtype = Ptr{Cint}
-        extract = true
-    else
-        @assert false "Unknown type: $type"
-    end
-
-    ptr = API.lammps_extract_compute(lmp, name, style, type)
-    ptr == C_NULL && check(lmp)
-
-    if ptr == C_NULL
-        error("Could not extract_compute $name with $style and $type")
-    end
-
-    ptr = reinterpret(dtype, ptr)
-    if extract
-        return Base.unsafe_load(ptr)
-    end
-    return ptr
-end
-
 """
-    extract_compute(lmp, name, style, type)
+    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE, type::_LMP_TYPE; copy=true)
 """
-function extract_compute(lmp::LMP, name, style, type)
-    ptr_or_value = unsafe_extract_compute(lmp, name, style, type)
-    if style == API.LMP_TYPE_SCALAR
-        return ptr_or_value
-    end
-    if ptr_or_value === nothing
-        return nothing
-    end
-    ptr = ptr_or_value::Ptr
+function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy=true)
+    API.lammps_has_id(lmp, "compute", name) != 1 && error("Unknown compute $name")
 
-    if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
-        if type == API.LMP_TYPE_VECTOR
-            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_VECTOR)
-            return unsafe_wrap(ptr, (nrows,))
-        elseif type == API.LMP_TYPE_ARRAY
-            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_ROWS)
-            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
-            return unsafe_wrap(ptr, (nrows, ncols))
-        end
-    else style = API.LMP_STYLE_ATOM
-        nlocal = extract_global(lmp, "nlocal")
-        if type == API.LMP_TYPE_VECTOR
-            return unsafe_wrap(ptr, (nlocal,))
-        elseif type == API.LMP_TYPE_ARRAY
-            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
-            return unsafe_wrap(ptr, (nlocal, ncols))
-        end
+    void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
+    void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
+
+    if lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)
+        ptr = lammps_reinterpret(LAMMPS_INT, void_ptr)
+        return lammps_wrap(ptr, 1, copy)
     end
-    return nothing
+
+    if lmp_type == TYPE_SCALAR
+        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return lammps_wrap(ptr, 1, copy)
+    end
+
+    ndata = style == LMP_STYLE_ATOM ?
+        extract_setting(lmp, "nlocal") :
+        extract_compute(lmp, name, style, TYPE_SCALAR, copy=false)[]
+
+    if lmp_type == TYPE_VECTOR
+        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return lammps_wrap(ptr, ndata, copy)
+    end
+
+    count = extract_compute(lmp, name, style, SIZE_COLS)[]
+    ptr = lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+
+    return lammps_wrap(ptr, (count, ndata), copy)
 end
 
 """
