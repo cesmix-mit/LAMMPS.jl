@@ -278,22 +278,27 @@ function extract_global(lmp::LMP, name, dtype=nothing)
     end
 end
 
-function unsafe_wrap(ptr, shape)
-    if length(shape) > 1
-        # We got a list of ptrs,
-        # but the first pointer points to the whole data
-        ptr = Base.unsafe_load(ptr)
+function lammps_unsafe_string(ptr::Ptr, copy=true)
+    result = Base.unsafe_string(ptr)
+    return copy ? deepcopy(result) : result
+end
 
-        @assert length(shape) == 2
+function lammps_unsafe_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
+    result = Base.unsafe_wrap(Array, ptr, shape, own=own)
+    return copy ? Base.copy(result) : result
+end
 
-        # Note: Julia like Fortran is column-major
-        #       so the data is transposed from Julia's perspective
-        shape = reverse(shape)
-    end
+function lammps_unsafe_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
+    (count, ndata) = shape
 
-    # TODO: Who is responsible for freeing this data
-    array = Base.unsafe_wrap(Array, ptr, shape, own=false)
-    return array
+    ndata == 0 && return Matrix{T}(undef, count, ndata)
+
+    pointers = Base.unsafe_wrap(Array, ptr, ndata)
+
+    @assert all(diff(pointers) .== count*sizeof(T))
+    result = Base.unsafe_wrap(Array, pointers[1], shape, own=own)
+
+    return copy ? Base.copy(result) : result
 end
 
 """
