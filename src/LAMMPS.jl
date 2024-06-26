@@ -1,7 +1,7 @@
 module LAMMPS
 import MPI
 include("api.jl")
-import .API: LMP_STYLE_GLOBAL, LMP_STYLE_ATOM, LMP_STYLE_LOCAL
+import .API: _LMP_STYLE_CONST, LMP_STYLE_GLOBAL, LMP_STYLE_ATOM, LMP_STYLE_LOCAL
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
@@ -25,7 +25,11 @@ export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        VAR_EQUAL,
        VAR_ATOM,
        VAR_VECTOR,
-       VAR_STRING
+       VAR_STRING,
+
+       LMP_STYLE_GLOBAL,
+       LMP_STYLE_ATOM,
+       LMP_STYLE_LOCAL
 
 using Preferences
 
