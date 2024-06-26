@@ -574,13 +574,13 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function scatter!(lmp::LMP, name::String, data::T, ids::Union{Nothing, Array{Int32}}=nothing) where T<:VecOrMat
+function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Float64, Int32}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
     _T = _get_dtype(lmp, name)
 
-    @assert Int(array2type(T)) == _T
+    @assert Int(array2type(typeof(data))) in _T
 
     dtype = (T === Float64)
     natoms = get_natoms(lmp)
