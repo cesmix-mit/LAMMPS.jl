@@ -4,7 +4,7 @@ include("api.jl")
 import .API: LMP_STYLE_GLOBAL, LMP_STYLE_ATOM, LMP_STYLE_LOCAL
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather, scatter!, group_to_atom_ids, get_category_ids,
+       extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
 
        LAMMPS_NONE,
        LAMMPS_INT,
@@ -270,6 +270,13 @@ function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
     T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
     T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
+end
+
+"""
+    extract_setting(lmp::LMP, name::String)
+"""
+function extract_setting(lmp::LMP, name::String)
+    return API.lammps_extract_setting(lmp, name)
 end
 
 """
