@@ -42,5 +42,5 @@ command(lmp, "compute pot_e all pe")
 command(lmp, "run 0")
 
 # extract output
-forces = gather(lmp, "f")
-energies = gather(lmp, "pot_e")
+forces = gather(lmp, "f", LAMMPS_DOUBLE_2D)
+energies = extract_compute(lmp, "pot_e", STYLE_GLOBAL, TYPE_SCALAR)
