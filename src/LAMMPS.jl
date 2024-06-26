@@ -277,13 +277,13 @@ function type2julia(type::_LMP_DATATYPE)
 end
 
 function array2type(array)
-    array isa Vector{Int32} && return LAMMPS_INT
-    array isa Matrix{Int32} && return LAMMPS_INT_2D
-    array isa Vector{Float64} && return LAMMPS_DOUBLE
-    array isa Matrix{Float64} && return LAMMPS_DOUBLE_2D
-    array isa Vector{Int64} && return LAMMPS_INT64
-    array isa Matrix{Int64} && return LAMMPS_INT64_2D
-    array isa String && return LAMMPS_STRING
+    array === Vector{Int32} && return LAMMPS_INT
+    array === Matrix{Int32} && return LAMMPS_INT_2D
+    array === Vector{Float64} && return LAMMPS_DOUBLE
+    array === Matrix{Float64} && return LAMMPS_DOUBLE_2D
+    array === Vector{Int64} && return LAMMPS_INT64
+    array === Matrix{Int64} && return LAMMPS_INT64_2D
+    array === String && return LAMMPS_STRING
 end
 
 is_2D(N::Integer) = N in (1, 3, 5)
