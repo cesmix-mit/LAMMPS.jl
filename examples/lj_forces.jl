@@ -43,4 +43,4 @@ command(lmp, "run 0")
 
 # extract output
 forces = gather(lmp, "f", Float64)
-energies = extract_compute(lmp, "pot_e", LAMMPS.API.LMP_STYLE_GLOBAL, LAMMPS.API.LMP_TYPE_SCALAR)
+energies = extract_compute(lmp, "pot_e", LMP_STYLE_GLOBAL, TYPE_SCALAR)
