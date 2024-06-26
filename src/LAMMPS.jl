@@ -257,25 +257,24 @@ function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
 end
 
 """
-    extract_global(lmp, name, dtype=nothing)
+    extract_global(lmp::LMP, name::String, dtype::_LMP_DATATYPE; copy=true)
 """
-function extract_global(lmp::LMP, name, dtype=nothing)
-    if dtype === nothing
-        dtype = API.lammps_extract_global_datatype(lmp, name)
-    end
-    dtype = API._LMP_DATATYPE_CONST(dtype)
-    type = dtype2type(dtype)
+function extract_global(lmp::LMP, name::String, dtype::_LMP_DATATYPE; copy=true)
+    @assert API.lammps_extract_global_datatype(lmp, name) == Int(dtype)
 
-    ptr = API.lammps_extract_global(lmp, name)
-    ptr = reinterpret(type, ptr)
+    ptr = lammps_reinterpret(dtype, API.lammps_extract_global(lmp, name))
 
-    if ptr !== C_NULL
-        if dtype == API.LAMMPS_STRING
-            return Base.unsafe_string(ptr)
-        end
-        # TODO: deal with non-scalar data
-        return Base.unsafe_load(ptr)
+    dtype == LAMMPS_STRING && return lammps_unsafe_string(ptr, copy)
+
+    if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
+        length = 3
+    elseif name in ("special_lj", "special_coul")
+        length = 4
+    else
+        length = 1
     end
+
+    return lammps_unsafe_wrap(ptr, length, copy)
 end
 
 function lammps_unsafe_string(ptr::Ptr, copy=true)
