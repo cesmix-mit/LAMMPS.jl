@@ -271,6 +271,7 @@ function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
     T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
+is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
     extract_setting(lmp::LMP, name::String)
@@ -328,48 +329,36 @@ function unsafe_wrap(ptr, shape)
 end
 
 """
-    extract_atom(lmp, name, dtype=nothing, axes1, axes2)
+    extract_atom(lmp::LMP, name::String, dtype::_LMP_DATATYPE; copy=true)
 """
-function extract_atom(lmp::LMP, name,
-                      dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
-                      axes1=nothing, axes2=nothing)
+function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
+    void_ptr = API.lammps_extract_atom(lmp, name)
+    void_ptr == C_NULL && error("Unknown per-atom variable $name")
 
+    expect = extract_atom_datatype(lmp, name)
+    recieve = get_enum(lmp_type)
+    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
 
-    if dtype === nothing
-        dtype = API.lammps_extract_atom_datatype(lmp, name)
-        dtype = API._LMP_DATATYPE_CONST(dtype)
-    end
+    ptr = lammps_reinterpret(lmp_type, void_ptr)
 
-    if axes1 === nothing
         if name == "mass"
-            axes1 = extract_global(lmp, "ntypes") + 1
-        else
-            axes1 = extract_global(lmp, "nlocal") % Int
-        end
+        length = extract_global(lmp, "ntypes", LAMMPS_INT, copy=false)[]
+        ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
+        return lammps_wrap(ptr, length, copy)
     end
 
-    if axes2 === nothing
-        if dtype in (API.LAMMPS_INT_2D, API.LAMMPS_INT64_2D, API.LAMMPS_DOUBLE_2D)
-            # TODO: Other fields?
-            if name in ("x", "v", "f", "angmom", "torque", "csforce", "vforce")
-                axes2 = 3
-            else
-                axes2 = 2
-            end
-        end
+    length = extract_setting(lmp, "nlocal")
+
+    if is_2D_datatype(lmp_type)
+        count = name == "quat" ? Int32(4) : Int32(3) # only Quaternions have 4 entries
+        return lammps_wrap(ptr, (count, length), copy)
     end
 
-    if axes2 !== nothing
-        shape = (axes1, axes2)
-    else
-        shape = (axes1, )
-    end
+    return lammps_wrap(ptr, length, copy)
+end
 
-    type = dtype2type(dtype)
-    ptr = API.lammps_extract_atom(lmp, name)
-    ptr = reinterpret(type, ptr)
-
-    unsafe_wrap(ptr, shape)
+function extract_atom_datatype(lmp::LMP, name)
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(lmp, name))
 end
 
 function unsafe_extract_compute(lmp::LMP, name, style, type)
