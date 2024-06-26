@@ -30,13 +30,13 @@ end
         # TODO: x is 3d, how do we access more than the first dims
         command(lmp, "variable var4 vector f_press")
 
-        @test LAMMPS.extract_variable(lmp, "var1") == 1.0
-        @test LAMMPS.extract_variable(lmp, "var2") == "hello"
-        x = LAMMPS.extract_atom(lmp, "x")
-        x_var = LAMMPS.extract_variable(lmp, "var3")
+        @test LAMMPS.extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
+        @test LAMMPS.extract_variable(lmp, "var2", VAR_STRING) == "hello"
+        x = LAMMPS.extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        x_var = LAMMPS.extract_variable(lmp, "var3", VAR_ATOM)
         @test length(x_var) == 10
         @test x_var == x[1, :]
-        press = LAMMPS.extract_variable(lmp, "var4")
+        press = LAMMPS.extract_variable(lmp, "var4", VAR_VECTOR)
         @test press isa Vector{Float64}
     end
 end
