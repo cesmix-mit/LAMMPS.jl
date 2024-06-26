@@ -235,6 +235,16 @@ function type2julia(type::_LMP_DATATYPE)
     type == LAMMPS_STRING && return String
 end
 
+function array2type(array::Union{VecOrMat, String})
+    array isa Vector{Int32} && return LAMMPS_INT
+    array isa Matrix{Int32} && return LAMMPS_INT_2D
+    array isa Vector{Float64} && return LAMMPS_DOUBLE
+    array isa Matrix{Float64} && return LAMMPS_DOUBLE_2D
+    array isa Vector{Int64} && return LAMMPS_INT64
+    array isa Matrix{Int64} && return LAMMPS_INT64_2D
+    array isa String && return LAMMPS_STRING
+end
+
 is_2D(N::Integer) = N in (1, 3, 5)
 is_2D(::_LMP_DATATYPE{N}) where N = N in (1, 3, 5)
 Base.Int(::_LMP_DATATYPE{N}) where N = N
@@ -426,28 +436,36 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 
 The returned Array is decoupled from the internal state of the LAMMPS instance.
 
-!!! warning "Type Verification"
-    Due to how the underlying C-API works, it's not possible to verify the element data-type of fix or compute style data.
-    Supplying the wrong data-type will not throw an error but will result in nonsensical output
-
 !!! warning "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
+function gather(lmp::LMP, name::String, T::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
+    _dtype = _get_dtype(lmp, name)
 
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
+    @assert Int(T) in _dtype "Expected data type $(int2type.(_dtype)) got $T instead."
+    count > 1 && T in (LAMMPS_DOUBLE, LAMMPS_INT) && error("1")
 
-    dtype = (T === Float64)
+    dtype = T in (LAMMPS_DOUBLE, LAMMPS_DOUBLE_2D)
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
-    data = Matrix{T}(undef, (count, ndata))
+
+    if T == LAMMPS_INT
+        data = Vector{Int32}(undef, ndata)
+    elseif T == LAMMPS_DOUBLE
+        data = Vector{Int32}(undef, ndata)
+    elseif T == LAMMPS_INT_2D
+        data = Matrix{Float64}(undef, (count, ndata))
+    elseif T == LAMMPS_DOUBLE_2D
+        data = Matrix{Float64}(undef, (count, ndata))
+    else
+        error("2")
+    end
 
     if isnothing(ids)
         API.lammps_gather(lmp, name, dtype, count, data)
@@ -469,23 +487,19 @@ The optional parameter `ids` determines to which subset of atoms the data will b
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
 
-!!! warning "Type Verification"
-    Due to how the underlying C-API works, it's not possible to verify the element data-type of fix or compute style data.
-    Supplying the wrong data-type will not throw an error but will result in nonsensical date being supplied to the LAMMPS instance.
-
 !!! warning "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+function scatter!(lmp::LMP, name::String, data::T, ids::Union{Nothing, Array{Int32}}=nothing) where T<:VecOrMat
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
+    _T = _get_dtype(lmp, name)
 
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
+    @assert Int(array2type(T)) == _T
 
     dtype = (T === Float64)
     natoms = get_natoms(lmp)
@@ -515,47 +529,55 @@ function _get_count(lmp::LMP, name::String)
     if startswith(name, r"[f,c]_")
         if name[1] == 'c'
             API.lammps_has_id(lmp, "compute", name[3:end]) != 1 && error("Unknown per atom compute $name")
-
             count_ptr = API.lammps_extract_compute(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
         else
             API.lammps_has_id(lmp, "fix", name[3:end]) != 1 && error("Unknown per atom fix $name")
-
             count_ptr = API.lammps_extract_fix(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
         end
-        check(lmp)
-
-        count_ptr = reinterpret(Ptr{Cint}, count_ptr)
+        count_ptr == C_NULL && error("compute $name does not have per atom data")
+        count_ptr = lammps_reinterpret(LAMMPS_INT, count_ptr)
         count = unsafe_load(count_ptr)
     
         # a count of 0 indicates that the entity is a vector. In order to perserve type stability we just treat that as a 1xN Matrix.
         return count == 0 ? 1 : count
-    elseif name in ("mass", "id", "type", "mask", "image", "molecule", "q", "radius", "rmass", "ellipsoid", "line", "tri", "body", "temperature", "heatflow")
-        return 1
-    elseif name in ("x", "v", "f", "mu", "omega", "angmom", "torque")
-        return 3
-    elseif name == "quat"
-        return 4
     else
-        error("Unknown per atom property $name")
+        dtype = API.lammps_extract_atom_datatype(lmp, name)
+        dtype == -1 && error("Unkown per atom property $name")
+
+        name == "quat" && return 4
+        is_2D(dtype) && return 3
+        return 1
+
     end
 end
 
-function _get_T(lmp::LMP, name::String)
+function _get_dtype(lmp::LMP, name::String)
     if startswith(name, r"[f,c]_")
-        return missing # As far as I know, it's not possible to determine the datatype of computes or fixes at runtime
-    end
-
-    type = API.lammps_extract_atom_datatype(lmp, name)
-    check(lmp)
-
-    if type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
-        return Int32
-    elseif type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
-        return Float64
+        return (Int(LAMMPS_DOUBLE), Int(LAMMPS_DOUBLE_2D))
     else
-        error("Unkown per atom property $name")
+        return (API.lammps_extract_atom_datatype(lmp, name), )
+    end
+end
+
+function decode_image_flags(images::Vector{<:Integer})
+    data = Matrix{Int32}(undef, (3, length(images)))
+
+    for (i, image) in pairs(images)
+        data_view = @view data[:, i]
+        API.lammps_decode_image_flags(image, data_view)
     end
 
+    return data
+end
+
+function encode_image_flags(images::Matrix{<:Integer})
+    @assert size(images, 1) == 3
+
+    return [API.lammps_encode_image_flags(img[1], img[2], img[3]) for img in eachcol(images)]
+end
+
+function is_running(lmp)
+    return API.lammps_is_running(lmp) > 0
 end
 
 """
@@ -576,7 +598,7 @@ function group_to_atom_ids(lmp::LMP, group::String)
         API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
         buffer != name_padded && continue
 
-        mask = gather(lmp, "mask", Int32)[:] .& (1 << idx) .!= 0
+        mask = gather(lmp, "mask", LAMMPS_INT) .& (1 << idx) .!= 0
         all_ids = UnitRange{Int32}(1, get_natoms(lmp))
 
         return all_ids[mask]
