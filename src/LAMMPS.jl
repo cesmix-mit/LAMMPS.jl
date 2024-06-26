@@ -213,25 +213,47 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function dtype2type(dtype::API._LMP_DATATYPE_CONST)
-    if dtype == API.LAMMPS_INT
-        type = Ptr{Int32}
-    elseif dtype == API.LAMMPS_INT_2D
-        type = Ptr{Ptr{Int32}}
-    elseif dtype == API.LAMMPS_INT64
-        type = Ptr{Int64}
-    elseif dtype == API.LAMMPS_INT64_2D
-        type = Ptr{Ptr{Int64}}
-    elseif dtype == API.LAMMPS_DOUBLE
-        type = Ptr{Float64}
-    elseif dtype == API.LAMMPS_DOUBLE_2D
-        type = Ptr{Ptr{Float64}}
-    elseif dtype == API.LAMMPS_STRING
-        type = Ptr{Cchar}
-    else
-        @assert false "Unknown dtype: $dtype"
-    end
-    return type
+function int2type(dtype)
+    dtype == 0 && return LAMMPS_INT
+    dtype == 1 && return LAMMPS_INT_2D
+    dtype == 2 && return LAMMPS_DOUBLE
+    dtype == 3 && return LAMMPS_DOUBLE_2D
+    dtype == 4 && return LAMMPS_INT64
+    dtype == 5 && return LAMMPS_INT64_2D
+    dtype == 6 && return LAMMPS_STRING
+
+    error("Unknown lammps data type: $dtype")
+end
+
+function type2julia(type::_LMP_DATATYPE)
+    type == LAMMPS_INT && return Vector{Int32}
+    type == LAMMPS_INT_2D && return Matrix{Int32}
+    type == LAMMPS_DOUBLE && return Vector{Float64}
+    type == LAMMPS_DOUBLE_2D && return Matrix{Float64}
+    type == LAMMPS_INT64 && return Vector{Int64}
+    type == LAMMPS_INT64_2D && return Matrix{Int64}
+    type == LAMMPS_STRING && return String
+end
+
+is_2D(N::Integer) = N in (1, 3, 5)
+is_2D(::_LMP_DATATYPE{N}) where N = N in (1, 3, 5)
+Base.Int(::_LMP_DATATYPE{N}) where N = N
+Base.Int(::LMP_VARIABLE{N}) where N = N
+Base.Int(::_LMP_TYPE{N}) where N = N
+Base.Int(::_LMP_STYLE{N}) where N = N
+
+function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
+    # we're pretty much guaranteed to call lammps_reinterpret after reciving a pointer
+    # from LAMMPS. So this is a good spot catch NULL-pointers and avoid Segfaults
+    ptr == C_NULL && error("reinterpreting NULL-pointer!")
+
+    T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
+    T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
+    T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
+    T === LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
+    T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
+    T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
+    T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
 
 """
