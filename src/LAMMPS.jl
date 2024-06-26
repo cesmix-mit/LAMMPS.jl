@@ -276,7 +276,7 @@ function type2julia(type::_LMP_DATATYPE)
     type == LAMMPS_STRING && return String
 end
 
-function array2type(array::Union{VecOrMat, String})
+function array2type(array)
     array isa Vector{Int32} && return LAMMPS_INT
     array isa Matrix{Int32} && return LAMMPS_INT_2D
     array isa Vector{Float64} && return LAMMPS_DOUBLE
