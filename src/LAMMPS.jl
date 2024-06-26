@@ -233,47 +233,73 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function dtype2type(dtype::API._LMP_DATATYPE_CONST)
-    if dtype == API.LAMMPS_INT
-        type = Ptr{Int32}
-    elseif dtype == API.LAMMPS_INT_2D
-        type = Ptr{Ptr{Int32}}
-    elseif dtype == API.LAMMPS_INT64
-        type = Ptr{Int64}
-    elseif dtype == API.LAMMPS_INT64_2D
-        type = Ptr{Ptr{Int64}}
-    elseif dtype == API.LAMMPS_DOUBLE
-        type = Ptr{Float64}
-    elseif dtype == API.LAMMPS_DOUBLE_2D
-        type = Ptr{Ptr{Float64}}
-    elseif dtype == API.LAMMPS_STRING
-        type = Ptr{Cchar}
-    else
-        @assert false "Unknown dtype: $dtype"
-    end
-    return type
+function lammps_string(ptr::Ptr, copy=true)
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+
+    result = Base.unsafe_string(ptr)
+    return copy ? deepcopy(result) : result
+end
+
+function lammps_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+
+    result = Base.unsafe_wrap(Array, ptr, shape, own=false)
+    return copy ? Base.copy(result) : result
+end
+
+function lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+
+    (count, ndata) = shape
+
+    ndata == 0 && return Matrix{T}(undef, count, ndata)
+
+    pointers = Base.unsafe_wrap(Array, ptr, ndata)
+
+    @assert all(diff(pointers) .== count*sizeof(T))
+    result = Base.unsafe_wrap(Array, pointers[1], shape, own=false)
+
+    return copy ? Base.copy(result) : result
+end
+
+function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
+    T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
+    T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
+    T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
+    T === LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
+    T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
+    T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
+    T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
 
 """
     extract_global(lmp, name, dtype=nothing)
 """
-function extract_global(lmp::LMP, name, dtype=nothing)
-    if dtype === nothing
-        dtype = API.lammps_extract_global_datatype(lmp, name)
-    end
-    dtype = API._LMP_DATATYPE_CONST(dtype)
-    type = dtype2type(dtype)
+function extract_global(lmp::LMP, name, lmp_type::_LMP_DATATYPE; copy=true)
+    void_ptr = API.lammps_extract_global(lmp, name)
+    void_ptr == C_NULL && error("Unknown global variable $name")
 
-    ptr = API.lammps_extract_global(lmp, name)
-    ptr = reinterpret(type, ptr)
+    expect = extract_global_datatype(lmp, name)
+    recieve = get_enum(lmp_type)
+    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
 
-    if ptr !== C_NULL
-        if dtype == API.LAMMPS_STRING
-            return Base.unsafe_string(ptr)
-        end
-        # TODO: deal with non-scalar data
-        return Base.unsafe_load(ptr)
+    ptr = lammps_reinterpret(lmp_type, void_ptr)
+
+    lmp_type == LAMMPS_STRING && return lammps_string(ptr, copy)
+
+    if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
+        length = 3
+    elseif name in ("special_lj", "special_coul")
+        length = 4
+    else
+        length = 1
     end
+
+    return lammps_wrap(ptr, length, copy)
+end
+
+function extract_global_datatype(lmp::LMP, name)
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(lmp, name))
 end
 
 function unsafe_wrap(ptr, shape)
