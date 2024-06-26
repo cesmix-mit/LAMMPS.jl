@@ -343,7 +343,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
 
     ptr = lammps_reinterpret(lmp_type, void_ptr)
 
-        if name == "mass"
+    if name == "mass"
         length = extract_global(lmp, "ntypes", LAMMPS_INT, copy=false)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
         return lammps_wrap(ptr, length, copy)
@@ -398,54 +398,59 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
-    extract_variable(lmp::LMP, name, group)
-
+    extract_variable(lmp::LMP, name::String, variable::LMP_VARIABLE, group=C_NULL; copy=true)
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
 Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
 For other variable styles, their string value is returned.
 """
-function extract_variable(lmp::LMP, name::String, group=nothing)
-    var = API.lammps_extract_variable_datatype(lmp, name)
-    if var == -1
-        throw(KeyError(name))
-    end
-    if group === nothing
+function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group=nothing; copy=true)
+    lmp_variable != VAR_ATOM && !isnothing(group) && error("the group parameter is only supported for per atom variables!")
+
+    if isnothing(group)
         group = C_NULL
     end
 
-    if var == API.LMP_VAR_EQUAL
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        val = Base.unsafe_load(Base.unsafe_convert(Ptr{Float64}, ptr))
+    void_ptr = API.lammps_extract_variable(lmp, name, group)
+    void_ptr == C_NULL && error("Unknown variable $name")
+
+    expect = extract_variable_datatype(lmp, name)
+    recieve = get_enum(lmp_variable)
+    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
+
+    if lmp_variable == VAR_EQUAL
+        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        result = unsafe_load(ptr)
         API.lammps_free(ptr)
-        return val
-    elseif var == API.LMP_VAR_ATOM
-        nlocal = extract_global(lmp, "nlocal")
-        ptr = API.lammps_extract_variable(lmp, name, group)
-        if ptr == C_NULL
-            error("Group $group for variable $name with style atom not available.")
-        end
-        # LAMMPS uses malloc, so and we are taking ownership of this buffer
-        val = copy(Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), nlocal; own=false))
-        API.lammps_free(ptr)
-        return val
-    elseif var == API.LMP_VAR_VECTOR
-        # TODO Fix lammps docs `GET_VECTOR_SIZE`
-        ptr = API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR")
-        if ptr == C_NULL
-            error("$name is a vector style variable but has no size.")
-        end
-        sz = Base.unsafe_load(Base.unsafe_convert(Ptr{Cint}, ptr))
-        API.lammps_free(ptr)
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), sz, own=false)
-    elseif var == API.LMP_VAR_STRING
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        return Base.unsafe_string(Base.unsafe_convert(Ptr{Cchar}, ptr))
-    else
-        error("Unkown variable style $var")
+        return result
     end
+
+    if lmp_variable == VAR_VECTOR
+        ndata_ptr = lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "GET_VECTOR_SIZE"))
+        ndata = unsafe_load(ndata_ptr)
+        API.lammps_free(ndata_ptr)
+
+        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return lammps_wrap(ptr, ndata, copy)
+    end
+
+    if lmp_variable == VAR_ATOM
+        ndata = extract_setting(lmp, "nlocal")
+
+        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        result = lammps_wrap(ptr, ndata, true)
+        API.lammps_free(ptr)
+        return result
+    end
+
+    ptr = lammps_reinterpret(LAMMPS_STRING, void_ptr)
+    return lammps_string(ptr, copy)
 end
+
+function extract_variable_datatype(lmp::LMP, name)
+    return API._LMP_VAR_CONST(API.lammps_extract_variable_datatype(lmp, name))
+end
+
 
 @deprecate gather_atoms(lmp::LMP, name, T, count) gather(lmp, name, T)
 
