@@ -7,6 +7,38 @@ export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
 
 using Preferences
 
+struct _LMP_DATATYPE{N}  end
+
+const LAMMPS_INT = _LMP_DATATYPE{0}()
+const LAMMPS_INT_2D = _LMP_DATATYPE{1}()
+const LAMMPS_DOUBLE = _LMP_DATATYPE{2}()
+const LAMMPS_DOUBLE_2D = _LMP_DATATYPE{3}()
+const LAMMPS_INT64 = _LMP_DATATYPE{4}()
+const LAMMPS_INT64_2D = _LMP_DATATYPE{5}()
+const LAMMPS_STRING = _LMP_DATATYPE{6}()
+
+struct _LMP_TYPE{N} end
+
+const TYPE_SCALAR = _LMP_TYPE{0}()
+const TYPE_VECTOR = _LMP_TYPE{1}()
+const TYPE_ARRAY = _LMP_TYPE{2}()
+const SIZE_VECTOR = _LMP_TYPE{3}()
+const SIZE_ROWS = _LMP_TYPE{4}()
+const SIZE_COLS = _LMP_TYPE{5}()
+
+struct _LMP_STYLE{N} end
+
+const STYLE_GLOBAL = _LMP_STYLE{0}()
+const STYLE_ATOM = _LMP_STYLE{1}()
+const STYLE_LOCAL = _LMP_STYLE{2}()
+
+struct LMP_VARIABLE{N} end
+
+const VARIABLE_EQUAL = LMP_VARIABLE{0}()
+const VARIABLE_ATOM = LMP_VARIABLE{1}()
+const VARIABLE_VECTOR = LMP_VARIABLE{2}()
+const VARIABLE_STRING = LMP_VARIABLE{3}()
+
 """
     locate()
 
