@@ -334,7 +334,7 @@ function lammps_unsafe_string(ptr::Ptr, copy=true)
 end
 
 function lammps_unsafe_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
-    result = Base.unsafe_wrap(Array, ptr, shape, own=own)
+    result = Base.unsafe_wrap(Array, ptr, shape, own=false)
     return copy ? Base.copy(result) : result
 end
 
@@ -346,7 +346,7 @@ function lammps_unsafe_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) whe
     pointers = Base.unsafe_wrap(Array, ptr, ndata)
 
     @assert all(diff(pointers) .== count*sizeof(T))
-    result = Base.unsafe_wrap(Array, pointers[1], shape, own=own)
+    result = Base.unsafe_wrap(Array, pointers[1], shape, own=false)
 
     return copy ? Base.copy(result) : result
 end
