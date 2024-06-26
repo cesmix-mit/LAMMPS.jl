@@ -1,11 +1,63 @@
 module LAMMPS
 import MPI
 include("api.jl")
+import .API: LMP_STYLE_GLOBAL, LMP_STYLE_ATOM, LMP_STYLE_LOCAL
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather, scatter!, group_to_atom_ids, get_category_ids
+       gather, scatter!, group_to_atom_ids, get_category_ids,
+
+       LAMMPS_NONE,
+       LAMMPS_INT,
+       LAMMPS_INT_2D,
+       LAMMPS_DOUBLE,
+       LAMMPS_DOUBLE_2D,
+       LAMMPS_INT64,
+       LAMMPS_INT64_2D,
+       LAMMPS_STRING,
+
+       TYPE_SCALAR,
+       TYPE_VECTOR,
+       TYPE_ARRAY,
+       SIZE_VECTOR,
+       SIZE_ROWS,
+       SIZE_COLS,
+
+       VAR_EQUAL,
+       VAR_ATOM,
+       VAR_VECTOR,
+       VAR_STRING
 
 using Preferences
+
+abstract type TypeEnum{N} end
+get_enum(::TypeEnum{N}) where N = N
+
+struct _LMP_DATATYPE{N} <: TypeEnum{N} end
+
+const LAMMPS_NONE = _LMP_DATATYPE{API.LAMMPS_NONE}()
+const LAMMPS_INT = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
+const LAMMPS_INT_2D = _LMP_DATATYPE{API.LAMMPS_INT_2D}()
+const LAMMPS_DOUBLE = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
+const LAMMPS_DOUBLE_2D = _LMP_DATATYPE{API.LAMMPS_DOUBLE_2D}()
+const LAMMPS_INT64 = _LMP_DATATYPE{API.LAMMPS_INT64}()
+const LAMMPS_INT64_2D = _LMP_DATATYPE{API.LAMMPS_INT64_2D}()
+const LAMMPS_STRING = _LMP_DATATYPE{API.LAMMPS_STRING}()
+
+struct _LMP_TYPE{N} <: TypeEnum{N} end
+
+const TYPE_SCALAR = _LMP_TYPE{API.LMP_TYPE_SCALAR}()
+const TYPE_VECTOR = _LMP_TYPE{API.LMP_TYPE_VECTOR}()
+const TYPE_ARRAY = _LMP_TYPE{API.LMP_TYPE_ARRAY}()
+const SIZE_VECTOR = _LMP_TYPE{API.LMP_SIZE_VECTOR}()
+const SIZE_ROWS = _LMP_TYPE{API.LMP_SIZE_ROWS}()
+const SIZE_COLS = _LMP_TYPE{API.LMP_SIZE_COLS}()
+
+struct LMP_VARIABLE{N} <: TypeEnum{N} end
+
+const VAR_EQUAL = LMP_VARIABLE{API.LMP_VAR_EQUAL}()
+const VAR_ATOM = LMP_VARIABLE{API.LMP_VAR_ATOM}()
+const VAR_VECTOR = LMP_VARIABLE{API.LMP_VAR_VECTOR}()
+const VAR_STRING = LMP_VARIABLE{API.LMP_VAR_STRING}()
 
 """
     locate()

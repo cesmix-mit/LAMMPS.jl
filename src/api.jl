@@ -6,7 +6,8 @@ import LAMMPS_jll
 import LAMMPS_jll: liblammps
 import MPI: MPI_Comm
 
-@cenum _LMP_DATATYPE_CONST::UInt32 begin
+@cenum _LMP_DATATYPE_CONST::Int32 begin
+    LAMMPS_NONE = -1
     LAMMPS_INT = 0
     LAMMPS_INT_2D = 1
     LAMMPS_DOUBLE = 2
@@ -16,13 +17,13 @@ import MPI: MPI_Comm
     LAMMPS_STRING = 6
 end
 
-@cenum _LMP_STYLE_CONST::UInt32 begin
+@cenum _LMP_STYLE_CONST::Int32 begin
     LMP_STYLE_GLOBAL = 0
     LMP_STYLE_ATOM = 1
     LMP_STYLE_LOCAL = 2
 end
 
-@cenum _LMP_TYPE_CONST::UInt32 begin
+@cenum _LMP_TYPE_CONST::Int32 begin
     LMP_TYPE_SCALAR = 0
     LMP_TYPE_VECTOR = 1
     LMP_TYPE_ARRAY = 2
@@ -31,7 +32,7 @@ end
     LMP_SIZE_COLS = 5
 end
 
-@cenum _LMP_ERROR_CONST::UInt32 begin
+@cenum _LMP_ERROR_CONST::Int32 begin
     LMP_ERROR_WARNING = 0
     LMP_ERROR_ONE = 1
     LMP_ERROR_ALL = 2
