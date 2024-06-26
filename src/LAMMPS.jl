@@ -478,6 +478,46 @@ function gather(lmp::LMP, name::String, T::_LMP_DATATYPE, ids::Union{Nothing, Ar
     return data
 end
 
+function gather_bonds(lmp::LMP)
+    nbonds = extract_global(lmp, "nbonds", LAMMPS_INT64, copy=false)[]
+    data = Matrix{Int32}(undef, (3, nbonds))
+    API.lammps_gather_bonds(lmp, data)
+    return data
+end
+
+function gather_angles(lmp::LMP)
+    nangles = extract_global(lmp, "nangles", LAMMPS_INT64, copy=false)[]
+    data = Matrix{Int32}(undef, (4, nangles))
+    API.lammps_gather_angles(lmp, data)
+    return data
+end
+
+function gather_dihedrals(lmp::LMP)
+    ndihedrals = extract_global(lmp, "ndihedrals", LAMMPS_INT64, copy=false)[]
+    data = Matrix{Int32}(undef, (5, ndihedrals))
+    API.lammps_gather_dihedrals(lmp, data)
+    return data
+end
+
+function gather_impropers(lmp::LMP)
+    nimpropers = extract_global(lmp, "nimpropers", LAMMPS_INT64, copy=false)[]
+    data = Matrix{Int32}(undef, (5, nimpropers))
+    API.lammps_gather_impropers(lmp, data)
+    return data
+end
+
+function create_atoms(lmp::LMP, type, x; id=nothing, v=nothing, image=nothing, bexpand=false)
+    natoms = length(type)
+
+    @assert size(x) == (3, natoms)
+
+    isnothing(id) ? id = C_NULL : @assert size(id) == natoms
+    isnothing(v) ? v = C_NULL : @assert size(v) == (3, natoms)
+    isnothing(image) ? image = C_NULL : @assert size(image) = natoms
+
+    return API.lammps_create_atoms(lmp, natoms, id, type, x, v, image, bexpand)
+end
+
 """
     scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
 
