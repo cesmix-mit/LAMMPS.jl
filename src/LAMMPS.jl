@@ -1,11 +1,55 @@
 module LAMMPS
+
 import MPI
+using Preferences
+
 include("api.jl")
 
-export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather, scatter!, group_to_atom_ids, get_category_ids
-
-using Preferences
+export
+# Core 
+    LMP,
+    command,
+    get_natoms,
+# Gather/Scatter operations
+    gather,
+    scatter!,
+    gather_angles,
+    gather_bonds,
+    gather_dihedrals,
+    gather_impropers,
+# Extracts
+    extract_setting,
+    extract_atom,
+    extract_compute,
+    extract_global,
+    extract_variable,
+# Utilities
+    group_to_atom_ids,
+    get_category_ids,
+# Datatypes
+    LAMMPS_INT,
+    LAMMPS_INT_2D,
+    LAMMPS_DOUBLE,
+    LAMMPS_DOUBLE_2D,
+    LAMMPS_INT64,
+    LAMMPS_INT64_2D,
+    LAMMPS_STRING,
+# Types
+    TYPE_SCALAR,
+    TYPE_VECTOR,
+    TYPE_ARRAY,
+    SIZE_COLS,
+    SIZE_ROWS,
+    SIZE_VECTOR,
+# Styles
+    STYLE_GLOBAL,
+    STYLE_ATOM,
+    STYLE_LOCAL,
+# Variables
+    VARIABLE_EQUAL,
+    VARIABLE_ATOM,
+    VARIABLE_VECTOR,
+    VARIABLE_STRING
 
 struct _LMP_DATATYPE{N}  end
 
