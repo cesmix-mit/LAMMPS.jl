@@ -1,7 +1,7 @@
 name = "LAMMPS"
 uuid = "ee2e13b9-eee9-4449-aafa-cfa6a2dbe14d"
 authors = ["Valentin Churavy <v.churavy@gmail.com>"]
-version = "0.4.1"
+version = "0.4.2"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -12,7 +12,7 @@ MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 
 [compat]
 CEnum = "0.4, 0.5"
-LAMMPS_jll = "2.4"
+LAMMPS_jll = "2.5"
 Preferences = "1"
 MPI = "0.20"
 julia = "1.8"
