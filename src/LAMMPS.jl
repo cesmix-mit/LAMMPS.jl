@@ -279,7 +279,7 @@ function _lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
 
-is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
+_is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
     extract_setting(lmp::LMP, name::String)::Int32
@@ -386,7 +386,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
 
     length = extract_setting(lmp, "nlocal")
 
-    if is_2D_datatype(lmp_type)
+    if _is_2D_datatype(lmp_type)
         # only Quaternions have 4 entries
         # length is a Int32 and lammps_wrap expects a NTuple, so it's
         # neccecary to use Int32 for count as well
