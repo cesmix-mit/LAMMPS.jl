@@ -42,6 +42,32 @@ end
     end
 end
 
+@testset "Extract Atom" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+        """)
+
+        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa  Vector{Float64}
+        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) == [1]
+
+        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
+        @test size(x) == (3, 27)
+
+        @test extract_atom(lmp, "image", LAMMPS_INT) isa Vector{Int32}
+
+        @test_throws ErrorException extract_atom(lmp, "v", LAMMPS_DOUBLE)
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
+    end
+end
+
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, """
@@ -165,6 +191,9 @@ end
 
         @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
         @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+
+        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LMP_STYLE_ATOM, TYPE_SCALAR)
+        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_ARRAY)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
