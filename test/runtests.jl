@@ -15,6 +15,30 @@ LMP(["-screen", "none"]) do lmp
     @test_throws ErrorException command(lmp, "nonsense")
 end
 
+@testset "Ectract Setting/Global" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+                atom_modify map yes
+                region cell block 0 1 0 2 0 3
+                create_box 1 cell
+        """)
+
+        @test extract_global(lmp, "dt", LAMMPS_DOUBLE)[] isa Float64
+        @test extract_global(lmp, "boxhi", LAMMPS_DOUBLE) == [1, 2, 3]
+        @test extract_global(lmp, "nlocal", LAMMPS_INT)[] == extract_setting(lmp, "nlocal") == 0
+
+        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT)
+        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT)
+
+        @test pointer(with_copy1) != pointer(with_copy2)
+
+        without_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
+        without_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
+
+        @test pointer(with_copy1) != pointer(with_copy2)
+    end
+end
+
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, "box tilt large")
@@ -30,13 +54,13 @@ end
         # TODO: x is 3d, how do we access more than the first dims
         command(lmp, "variable var4 vector f_press")
 
-        @test LAMMPS.extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
-        @test LAMMPS.extract_variable(lmp, "var2", VAR_STRING) == "hello"
-        x = LAMMPS.extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
-        x_var = LAMMPS.extract_variable(lmp, "var3", VAR_ATOM)
+        @test extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
+        @test extract_variable(lmp, "var2", VAR_STRING) == "hello"
+        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        x_var = extract_variable(lmp, "var3", VAR_ATOM)
         @test length(x_var) == 10
         @test x_var == x[1, :]
-        press = LAMMPS.extract_variable(lmp, "var4", VAR_VECTOR)
+        press = extract_variable(lmp, "var4", VAR_VECTOR)
         @test press isa Vector{Float64}
     end
 end
@@ -44,17 +68,20 @@ end
 @testset "gather/scatter" begin
     LMP(["-screen", "none"]) do lmp
         # setting up example data
-        command(lmp, "atom_modify map yes")
-        command(lmp, "region cell block 0 3 0 3 0 3")
-        command(lmp, "create_box 1 cell")
-        command(lmp, "lattice sc 1")
-        command(lmp, "create_atoms 1 region cell")
-        command(lmp, "mass 1 1")
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
 
-        command(lmp, "compute pos all property/atom x y z")
-        command(lmp, "fix pos all ave/atom 10 1 10 c_pos[1] c_pos[2] c_pos[3]")
+            compute pos all property/atom x y z
+            fix pos all ave/atom 10 1 10 c_pos[1] c_pos[2] c_pos[3]
 
-        command(lmp, "run 10")
+            run 10
+        """)
+
         data = zeros(Float64, 3, 27)
         subset = Int32.([2,5,10, 5])
         data_subset = ones(Float64, 3, 4)
@@ -98,6 +125,25 @@ end
 
         @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
 
+    end
+end
+
+@testset "Extract Compute" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            compute pos all property/atom x y z
+        """)
+
+        @test extract_compute(lmp, "pos", LMP_STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) == [0]
+        @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) == [0, 0, 0, 0, 0, 0]
     end
 end
 
