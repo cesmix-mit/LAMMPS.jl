@@ -278,6 +278,25 @@ is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_D
 
 """
     extract_setting(lmp::LMP, name::String)
+
+Query LAMMPS about global settings.
+
+A full list of settings can be found here: <https://docs.lammps.org/Library_properties.html>
+
+# Examples
+```julia
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, \"""
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+        \""")
+
+        extract_setting(lmp, "dimension") |> println # 3
+        extract_setting(lmp, "nlocal") |> println # 27
+    end
+```
 """
 function extract_setting(lmp::LMP, name::String)
     return API.lammps_extract_setting(lmp, name)
