@@ -2,6 +2,7 @@ module API
 
 using CEnum: CEnum, @cenum
 
+import LAMMPS_jll
 import LAMMPS_jll: liblammps
 import MPI: MPI_Comm
 
