@@ -1,12 +1,12 @@
 module API
 
-using CEnum
+using CEnum: CEnum, @cenum
 
-import LAMMPS_jll
 import LAMMPS_jll: liblammps
 import MPI: MPI_Comm
 
-@cenum _LMP_DATATYPE_CONST::UInt32 begin
+@cenum _LMP_DATATYPE_CONST::Int32 begin
+    LAMMPS_NONE = -1
     LAMMPS_INT = 0
     LAMMPS_INT_2D = 1
     LAMMPS_DOUBLE = 2
@@ -47,7 +47,7 @@ end
 end
 
 function lammps_open(argc, argv, comm, ptr)
-    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, MPI_Comm, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
+    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, Cint, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
 end
 
 function lammps_open_no_mpi(argc, argv, ptr)
@@ -62,22 +62,22 @@ function lammps_close(handle)
     ccall((:lammps_close, liblammps), Cvoid, (Ptr{Cvoid},), handle)
 end
 
-# no prototype is found for this function at library.h:128:6, please use with caution
+# no prototype is found for this function at library.h:129:6, please use with caution
 function lammps_mpi_init()
     ccall((:lammps_mpi_init, liblammps), Cvoid, ())
 end
 
-# no prototype is found for this function at library.h:129:6, please use with caution
+# no prototype is found for this function at library.h:130:6, please use with caution
 function lammps_mpi_finalize()
     ccall((:lammps_mpi_finalize, liblammps), Cvoid, ())
 end
 
-# no prototype is found for this function at library.h:130:6, please use with caution
+# no prototype is found for this function at library.h:131:6, please use with caution
 function lammps_kokkos_finalize()
     ccall((:lammps_kokkos_finalize, liblammps), Cvoid, ())
 end
 
-# no prototype is found for this function at library.h:131:6, please use with caution
+# no prototype is found for this function at library.h:132:6, please use with caution
 function lammps_python_finalize()
     ccall((:lammps_python_finalize, liblammps), Cvoid, ())
 end
@@ -110,6 +110,10 @@ function lammps_get_thermo(handle, keyword)
     ccall((:lammps_get_thermo, liblammps), Cdouble, (Ptr{Cvoid}, Ptr{Cchar}), handle, keyword)
 end
 
+function lammps_last_thermo(handle, what, index)
+    ccall((:lammps_last_thermo, liblammps), Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Cchar}, Cint), handle, what, index)
+end
+
 function lammps_extract_box(handle, boxlo, boxhi, xy, yz, xz, pflags, boxflag)
     ccall((:lammps_extract_box, liblammps), Cvoid, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), handle, boxlo, boxhi, xy, yz, xz, pflags, boxflag)
 end
@@ -123,7 +127,7 @@ function lammps_memory_usage(handle, meminfo)
 end
 
 function lammps_get_mpi_comm(handle)
-    ccall((:lammps_get_mpi_comm, liblammps), MPI_Comm, (Ptr{Cvoid},), handle)
+    ccall((:lammps_get_mpi_comm, liblammps), Cint, (Ptr{Cvoid},), handle)
 end
 
 function lammps_extract_setting(handle, keyword)
@@ -254,32 +258,32 @@ function lammps_get_os_info(buffer, buf_size)
     ccall((:lammps_get_os_info, liblammps), Cvoid, (Ptr{Cchar}, Cint), buffer, buf_size)
 end
 
-# no prototype is found for this function at library.h:231:5, please use with caution
+# no prototype is found for this function at library.h:233:5, please use with caution
 function lammps_config_has_mpi_support()
     ccall((:lammps_config_has_mpi_support, liblammps), Cint, ())
 end
 
-# no prototype is found for this function at library.h:232:5, please use with caution
+# no prototype is found for this function at library.h:234:5, please use with caution
 function lammps_config_has_gzip_support()
     ccall((:lammps_config_has_gzip_support, liblammps), Cint, ())
 end
 
-# no prototype is found for this function at library.h:233:5, please use with caution
+# no prototype is found for this function at library.h:235:5, please use with caution
 function lammps_config_has_png_support()
     ccall((:lammps_config_has_png_support, liblammps), Cint, ())
 end
 
-# no prototype is found for this function at library.h:234:5, please use with caution
+# no prototype is found for this function at library.h:236:5, please use with caution
 function lammps_config_has_jpeg_support()
     ccall((:lammps_config_has_jpeg_support, liblammps), Cint, ())
 end
 
-# no prototype is found for this function at library.h:235:5, please use with caution
+# no prototype is found for this function at library.h:237:5, please use with caution
 function lammps_config_has_ffmpeg_support()
     ccall((:lammps_config_has_ffmpeg_support, liblammps), Cint, ())
 end
 
-# no prototype is found for this function at library.h:236:5, please use with caution
+# no prototype is found for this function at library.h:238:5, please use with caution
 function lammps_config_has_exceptions()
     ccall((:lammps_config_has_exceptions, liblammps), Cint, ())
 end
@@ -288,7 +292,7 @@ function lammps_config_has_package(arg1)
     ccall((:lammps_config_has_package, liblammps), Cint, (Ptr{Cchar},), arg1)
 end
 
-# no prototype is found for this function at library.h:239:5, please use with caution
+# no prototype is found for this function at library.h:241:5, please use with caution
 function lammps_config_package_count()
     ccall((:lammps_config_package_count, liblammps), Cint, ())
 end
@@ -301,7 +305,7 @@ function lammps_config_accelerator(arg1, arg2, arg3)
     ccall((:lammps_config_accelerator, liblammps), Cint, (Ptr{Cchar}, Ptr{Cchar}, Ptr{Cchar}), arg1, arg2, arg3)
 end
 
-# no prototype is found for this function at library.h:243:5, please use with caution
+# no prototype is found for this function at library.h:245:5, please use with caution
 function lammps_has_gpu_device()
     ccall((:lammps_has_gpu_device, liblammps), Cint, ())
 end
@@ -334,7 +338,7 @@ function lammps_id_name(arg1, arg2, arg3, arg4, arg5)
     ccall((:lammps_id_name, liblammps), Cint, (Ptr{Cvoid}, Ptr{Cchar}, Cint, Ptr{Cchar}, Cint), arg1, arg2, arg3, arg4, arg5)
 end
 
-# no prototype is found for this function at library.h:254:5, please use with caution
+# no prototype is found for this function at library.h:256:5, please use with caution
 function lammps_plugin_count()
     ccall((:lammps_plugin_count, liblammps), Cint, ())
 end
@@ -410,7 +414,7 @@ function lammps_get_last_error_message(handle, buffer, buf_size)
     ccall((:lammps_get_last_error_message, liblammps), Cint, (Ptr{Cvoid}, Ptr{Cchar}, Cint), handle, buffer, buf_size)
 end
 
-# no prototype is found for this function at library.h:297:5, please use with caution
+# no prototype is found for this function at library.h:299:5, please use with caution
 function lammps_python_api_version()
     ccall((:lammps_python_api_version, liblammps), Cint, ())
 end
