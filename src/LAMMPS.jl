@@ -544,10 +544,10 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
 
     if lmp_variable == VAR_VECTOR
         # Calling lammps_extract_variable directly through the API instead of the higher level wrapper, as
-        # "GET_VECTOR_SIZE" is the only group name that won't be ignored for Vector Style Variables.
+        # "LMP_SIZE_VECTOR" is the only group name that won't be ignored for Vector Style Variables.
         # This isn't exposed to the high level API as it causes type instability for something that probably won't
         # ever be used outside of this implementation
-        ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "GET_VECTOR_SIZE"))
+        ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
 
