@@ -527,7 +527,8 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
     expect = extract_variable_datatype(lmp, name)
     recieve = get_enum(lmp_variable)
     if expect != recieve
-        if expect in (API.LMP_VAR_ATOM, API.LMP_VAR_VECTOR)
+        # the documentation instructs us to free the pointers for these styles specifically
+        if expect in (API.LMP_VAR_ATOM, API.LMP_VAR_EQUAL)
             API.lammps_free(void_ptr)
         end
 
@@ -542,6 +543,10 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
     end
 
     if lmp_variable == VAR_VECTOR
+        # Calling lammps_extract_variable directly through the API instead of the higher level wrapper, as
+        # "GET_VECTOR_SIZE" is the only group name that won't be ignored for Vector Style Variables.
+        # This isn't exposed to the high level API as it causes type instability for something that probably won't
+        # ever be used outside of this implementation
         ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "GET_VECTOR_SIZE"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
