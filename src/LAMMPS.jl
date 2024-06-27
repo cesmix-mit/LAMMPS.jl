@@ -328,7 +328,7 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=tr
 
     ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
-    lmp_type == LAMMPS_STRING && return _lammps_string(ptr, copy)
+    lmp_type == LAMMPS_STRING && return _lammps_string(ptr)
 
     if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
         length = 3
