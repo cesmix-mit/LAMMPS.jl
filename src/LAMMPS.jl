@@ -332,24 +332,6 @@ function extract_global_datatype(lmp::LMP, name)
     return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(lmp, name))
 end
 
-function unsafe_wrap(ptr, shape)
-    if length(shape) > 1
-        # We got a list of ptrs,
-        # but the first pointer points to the whole data
-        ptr = Base.unsafe_load(ptr)
-
-        @assert length(shape) == 2
-
-        # Note: Julia like Fortran is column-major
-        #       so the data is transposed from Julia's perspective
-        shape = reverse(shape)
-    end
-
-    # TODO: Who is responsible for freeing this data
-    array = Base.unsafe_wrap(Array, ptr, shape, own=false)
-    return array
-end
-
 """
     extract_atom(lmp::LMP, name::String, dtype::_LMP_DATATYPE; copy=true)
 """
