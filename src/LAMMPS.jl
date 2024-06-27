@@ -235,21 +235,21 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function lammps_string(ptr::Ptr, copy=true)
+function _lammps_string(ptr::Ptr, copy=true)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     result = Base.unsafe_string(ptr)
     return copy ? deepcopy(result) : result
 end
 
-function lammps_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
+function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     result = Base.unsafe_wrap(Array, ptr, shape, own=false)
     return copy ? Base.copy(result) : result
 end
 
-function lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
+function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     (count, ndata) = shape
@@ -264,7 +264,7 @@ function lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
     return copy ? Base.copy(result) : result
 end
 
-function lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
+function _lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
     T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
     T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
@@ -313,9 +313,9 @@ function extract_global(lmp::LMP, name, lmp_type::_LMP_DATATYPE; copy=true)
     recieve = get_enum(lmp_type)
     expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
 
-    ptr = lammps_reinterpret(lmp_type, void_ptr)
+    ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
-    lmp_type == LAMMPS_STRING && return lammps_string(ptr, copy)
+    lmp_type == LAMMPS_STRING && return _lammps_string(ptr, copy)
 
     if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
         length = 3
@@ -325,7 +325,7 @@ function extract_global(lmp::LMP, name, lmp_type::_LMP_DATATYPE; copy=true)
         length = 1
     end
 
-    return lammps_wrap(ptr, length, copy)
+    return _lammps_wrap(ptr, length, copy)
 end
 
 function extract_global_datatype(lmp::LMP, name)
@@ -343,22 +343,21 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
     recieve = get_enum(lmp_type)
     expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
 
-    ptr = lammps_reinterpret(lmp_type, void_ptr)
+    ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
     if name == "mass"
         length = extract_global(lmp, "ntypes", LAMMPS_INT, copy=false)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
-        return lammps_wrap(ptr, length, copy)
+        return _lammps_wrap(ptr, length, copy)
     end
 
     length = extract_setting(lmp, "nlocal")
 
     if is_2D_datatype(lmp_type)
-        count = name == "quat" ? Int32(4) : Int32(3) # only Quaternions have 4 entries
-        return lammps_wrap(ptr, (count, length), copy)
+        return _lammps_wrap(ptr, (count, length), copy)
     end
 
-    return lammps_wrap(ptr, length, copy)
+    return _lammps_wrap(ptr, length, copy)
 end
 
 function extract_atom_datatype(lmp::LMP, name)
@@ -397,9 +396,8 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
     void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
 
-    if lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)
-        ptr = lammps_reinterpret(LAMMPS_INT, void_ptr)
-        return lammps_wrap(ptr, 1, copy)
+        ptr = _lammps_reinterpret(LAMMPS_INT, void_ptr)
+        return _lammps_wrap(ptr, 1, copy)
     end
 
     if lmp_type == TYPE_SCALAR
@@ -449,32 +447,32 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
     expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
 
     if lmp_variable == VAR_EQUAL
-        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         result = unsafe_load(ptr)
         API.lammps_free(ptr)
         return result
     end
 
     if lmp_variable == VAR_VECTOR
-        ndata_ptr = lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "GET_VECTOR_SIZE"))
+        ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "GET_VECTOR_SIZE"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
 
-        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return lammps_wrap(ptr, ndata, copy)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _lammps_wrap(ptr, ndata, copy)
     end
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
 
-        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        result = lammps_wrap(ptr, ndata, true)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        result = _lammps_wrap(ptr, ndata, true)
         API.lammps_free(ptr)
         return result
     end
 
-    ptr = lammps_reinterpret(LAMMPS_STRING, void_ptr)
-    return lammps_string(ptr, copy)
+    ptr = _lammps_reinterpret(LAMMPS_STRING, void_ptr)
+    return _lammps_string(ptr)
 end
 
 function extract_variable_datatype(lmp::LMP, name)
