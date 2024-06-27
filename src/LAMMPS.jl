@@ -366,6 +366,29 @@ end
 
 """
     extract_compute(lmp::LMP, name::String, style::_LMP_STYLE, type::_LMP_TYPE; copy=true)
+
+Extract data provided by a compute command identified by the compute-ID.
+Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
+Since computes may provide multiple kinds of data, it is required to set style and type flags representing what specific data is desired.
+
+the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
+As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
+if you wish to modify the internal state of the LAMMPS instance.
+
+Scalar values get returned as a vector with a single element. This way it's possible to
+modify the internal state of the LAMMPS instance even if the data is scalar.
+
+# Examples
+
+```julia
+    LMP(["-screen", "none"]) do lmp
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR)[2] = 2
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+    end
+```
 """
 function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy=true)
     API.lammps_has_id(lmp, "compute", name) != 1 && error("Unknown compute $name")
@@ -404,6 +427,7 @@ end
 
 """
     extract_variable(lmp::LMP, name::String, variable::LMP_VARIABLE, group=C_NULL; copy=true)
+
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
 Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
