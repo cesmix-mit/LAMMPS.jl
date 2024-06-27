@@ -235,17 +235,16 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function _lammps_string(ptr::Ptr, copy=true)
+function _lammps_string(ptr::Ptr)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-
-    result = Base.unsafe_string(ptr)
-    return copy ? deepcopy(result) : result
+    return Base.unsafe_string(ptr)
 end
 
 function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     result = Base.unsafe_wrap(Array, ptr, shape, own=false)
+
     return copy ? Base.copy(result) : result
 end
 
@@ -254,11 +253,16 @@ function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
 
     (count, ndata) = shape
 
-    ndata == 0 && return Matrix{T}(undef, count, ndata)
+    ndata == 0 && return Matrix{T}(undef, count, ndata) # There is no data that can be wrapped
 
     pointers = Base.unsafe_wrap(Array, ptr, ndata)
 
+    # This assert verifies that all the pointers are evenly spaced according to count.
+    # While it seems like this is allways the case, it's not explicitly stated in the
+    # API documentation. It also helps to verify, that the count is correct.
     @assert all(diff(pointers) .== count*sizeof(T))
+
+    # It the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
     result = Base.unsafe_wrap(Array, pointers[1], shape, own=false)
 
     return copy ? Base.copy(result) : result
@@ -354,6 +358,10 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
     length = extract_setting(lmp, "nlocal")
 
     if is_2D_datatype(lmp_type)
+        # only Quaternions have 4 entries
+        # length is a Int32 and lammps_wrap expects a NTuple, so it's
+        # neccecary to use Int32 for count as well
+        count = name == "quat" ? Int32(4) : Int32(3)
         return _lammps_wrap(ptr, (count, length), copy)
     end
 
@@ -396,13 +404,15 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
     void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
 
+    # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
+    if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
         ptr = _lammps_reinterpret(LAMMPS_INT, void_ptr)
         return _lammps_wrap(ptr, 1, copy)
     end
 
     if lmp_type == TYPE_SCALAR
-        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return lammps_wrap(ptr, 1, copy)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _lammps_wrap(ptr, 1, copy)
     end
 
     if lmp_type == TYPE_VECTOR
@@ -410,8 +420,8 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
             extract_setting(lmp, "nlocal") :
             extract_compute(lmp, name, style, SIZE_VECTOR, copy=false)[]
 
-        ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return lammps_wrap(ptr, ndata, copy)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _lammps_wrap(ptr, ndata, copy)
     end
 
     ndata = (style == LMP_STYLE_ATOM) ?
@@ -419,9 +429,9 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
         extract_compute(lmp, name, style, SIZE_ROWS, copy=false)[]
 
     count = extract_compute(lmp, name, style, SIZE_COLS, copy=false)[]
-    ptr = lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+    ptr = _lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
-    return lammps_wrap(ptr, (count, ndata), copy)
+    return _lammps_wrap(ptr, (count, ndata), copy)
 end
 
 """
