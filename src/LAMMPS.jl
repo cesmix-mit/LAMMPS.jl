@@ -281,7 +281,7 @@ end
 is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
-    extract_setting(lmp::LMP, name::String)
+    extract_setting(lmp::LMP, name::String)::Int32
 
 Query LAMMPS about global settings.
 
@@ -302,14 +302,23 @@ A full list of settings can be found here: <https://docs.lammps.org/Library_prop
     end
 ```
 """
-function extract_setting(lmp::LMP, name::String)
+function extract_setting(lmp::LMP, name::String)::Int32
     return API.lammps_extract_setting(lmp, name)
 end
 
 """
-    extract_global(lmp, name, dtype=nothing)
+    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
+
+Extract a global property from a LAMMPS instance.
+
+the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
+the pointer to the underlying data is generally persistent, unless a clear command is issued.
+However it's still recommended to only disable this, if you wish to modify the internal state of the LAMMPS instance.
+
+Scalar values get returned as a vector with a single element. This way it's possible to
+modify the internal state of the LAMMPS instance even if the data is scalar.
 """
-function extract_global(lmp::LMP, name, lmp_type::_LMP_DATATYPE; copy=true)
+function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
     void_ptr = API.lammps_extract_global(lmp, name)
     void_ptr == C_NULL && error("Unknown global variable $name")
 
@@ -373,11 +382,26 @@ function extract_atom_datatype(lmp::LMP, name)
 end
 
 """
-    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE, type::_LMP_TYPE; copy=true)
+    function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy=true)
 
 Extract data provided by a compute command identified by the compute-ID.
 Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
 Since computes may provide multiple kinds of data, it is required to set style and type flags representing what specific data is desired.
+
+| valid values for `style`: |
+| :------------------------ |
+| `LMP_STYLE_GLOBAL`        |
+| `LMP_STYLE_ATOM`          |
+| `LMP_STYLE_LOCAL`         |
+
+| valid values for `lmp_type`: | resulting return type: |
+| :--------------------------- | :--------------------- |
+| `TYPE_SCALAR`                | `Vector{Float64}`      |
+| `TYPE_VECTOR`                | `Vector{Float64}`      |
+| `TYPE_ARRAY`                 | `Matrix{Float64}`      |
+| `SIZE_VECTOR`                | `Vector{Int32}`        |
+| `SIZE_COLS`                  | `Vector{Int32}`        |
+| `SIZE_ROWS`                  | `Vector{Int32}`        |
 
 the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
 As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
@@ -435,12 +459,26 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
-    extract_variable(lmp::LMP, name::String, variable::LMP_VARIABLE, group=C_NULL; copy=true)
+    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group=nothing; copy=true)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
 Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
 For other variable styles, their string value is returned.
+
+| valid values for `lmp_variable`: | return type       |
+| :------------------------------- | :---------------  |
+| `VAR_ATOM`                       | `Vector{Float64}` |
+| `VAR_EQUAL`                      | `Float64`         |
+| `VAR_STRING`                     | `String`          |
+| `VAR_VECTOR`                     | `Vector{Float64}` |
+
+the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
+`copy` is only aplicable for `VAR_VECTOR`. For all other variable types, a copy will be made regardless.
+
+the kwarg `group` determines for which atoms the variable will be extracted. It's only aplicable for
+`VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
+will be zeroed out. By default, all atoms will be extracted.
 """
 function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group=nothing; copy=true)
     lmp_variable != VAR_ATOM && !isnothing(group) && error("the group parameter is only supported for per atom variables!")
