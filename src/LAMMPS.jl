@@ -97,13 +97,11 @@ end
     LMP(f::Function, args=String[], comm=nothing)
 
 Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
-This constructor closes the LAMMPS instance immediately after `f` has executed.
 """
 function LMP(f::Function, args=String[], comm=nothing)
     lmp = LMP(args, comm)
-    result = f(lmp)
-    close!(lmp)
-    return result
+    return f(lmp)
+    # `close!` is registered as a finalizer for LMP, no need to close it here.
 end
 
 function version(lmp::LMP)
