@@ -308,9 +308,19 @@ function extract_setting(lmp::LMP, name::String)::Int32
 end
 
 """
-    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
+    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=true)
 
 Extract a global property from a LAMMPS instance.
+
+| valid values for `lmp_type`: | resulting return type: |
+| :--------------------------- | :--------------------- |
+| `LAMMPS_INT`                 | `Vector{Int32}`        |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
+| `LAMMPS_INT64`               | `Vector{Int64}`        |
+| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
+| `LAMMPS_STRING`              | `String`               |
 
 the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
 the pointer to the underlying data is generally persistent, unless a clear command is issued.
@@ -321,7 +331,7 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 
 A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
 """
-function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
+function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=true)
     void_ptr = API.lammps_extract_global(lmp, name)
     void_ptr == C_NULL && error("Unknown global variable $name")
 
@@ -402,7 +412,7 @@ function extract_atom_datatype(lmp::LMP, name)
 end
 
 """
-    function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy=true)
+    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
 
 Extract data provided by a compute command identified by the compute-ID.
 Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
@@ -442,7 +452,7 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
     end
 ```
 """
-function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy=true)
+function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
     API.lammps_has_id(lmp, "compute", name) != 1 && error("Unknown compute $name")
 
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
@@ -479,7 +489,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
-    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group=nothing; copy=true)
+    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=true)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
@@ -500,7 +510,7 @@ the kwarg `group` determines for which atoms the variable will be extracted. It'
 `VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
 will be zeroed out. By default, all atoms will be extracted.
 """
-function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group=nothing; copy=true)
+function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=true)
     lmp_variable != VAR_ATOM && !isnothing(group) && error("the group parameter is only supported for per atom variables!")
 
     if isnothing(group)
