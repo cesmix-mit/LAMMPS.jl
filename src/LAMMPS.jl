@@ -5,6 +5,7 @@ import .API: _LMP_STYLE_CONST, LMP_STYLE_GLOBAL, LMP_STYLE_ATOM, LMP_STYLE_LOCAL
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
+       extract_variable,
 
        LAMMPS_NONE,
        LAMMPS_INT,
@@ -382,16 +383,20 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
         return lammps_wrap(ptr, 1, copy)
     end
 
-    ndata = style == LMP_STYLE_ATOM ?
-        extract_setting(lmp, "nlocal") :
-        extract_compute(lmp, name, style, TYPE_SCALAR, copy=false)[]
-
     if lmp_type == TYPE_VECTOR
+        ndata = (style == LMP_STYLE_ATOM) ?
+            extract_setting(lmp, "nlocal") :
+            extract_compute(lmp, name, style, SIZE_VECTOR, copy=false)[]
+
         ptr = lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         return lammps_wrap(ptr, ndata, copy)
     end
 
-    count = extract_compute(lmp, name, style, SIZE_COLS)[]
+    ndata = (style == LMP_STYLE_ATOM) ?
+        extract_setting(lmp, "nlocal") :
+        extract_compute(lmp, name, style, SIZE_ROWS, copy=false)[]
+
+    count = extract_compute(lmp, name, style, SIZE_COLS, copy=false)[]
     ptr = lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
     return lammps_wrap(ptr, (count, ndata), copy)
