@@ -58,10 +58,8 @@ mutable struct LMP
     @atomic handle::Ptr{Cvoid}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
-        if !isempty(args)
-            args = copy(args)
-            pushfirst!(args, "lammps")
-        end
+        args = copy(args)
+        pushfirst!(args, "lammps")
 
         GC.@preserve args begin
             if comm !== nothing
