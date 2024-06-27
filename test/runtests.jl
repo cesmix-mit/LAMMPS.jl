@@ -36,6 +36,9 @@ end
         without_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
 
         @test pointer(with_copy1) != pointer(with_copy2)
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
@@ -71,6 +74,9 @@ end
 
         @test x_var_group[in_group] == x[1, in_group]
         @test all(x_var_group[.!in_group] .== 0)
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
@@ -134,6 +140,8 @@ end
 
         @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
 
+    # verify that no errors were missed
+    @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
@@ -157,6 +165,9 @@ end
 
         @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
         @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
@@ -192,6 +203,9 @@ end
         @test get_category_ids(lmp, "compute") == ["thermo_temp", "thermo_press", "thermo_pe", "pos"] # some of these computes are there by default it seems
         @test get_category_ids(lmp, "fix") == ["1"]
         @test_throws ErrorException get_category_ids(lmp, "nonesense")
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
