@@ -101,6 +101,8 @@ end
         @test x_var_group[in_group] == x[1, in_group]
         @test all(x_var_group[.!in_group] .== 0)
 
+        @test_throws ErrorException extract_variable(lmp, "var3", VAR_EQUAL)
+
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
