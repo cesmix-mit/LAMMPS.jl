@@ -318,6 +318,8 @@ However it's still recommended to only disable this, if you wish to modify the i
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
+
+A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
 """
 function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
     void_ptr = API.lammps_extract_global(lmp, name)
@@ -347,7 +349,24 @@ function extract_global_datatype(lmp::LMP, name)
 end
 
 """
-    extract_atom(lmp::LMP, name::String, dtype::_LMP_DATATYPE; copy=true)
+    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
+
+Extract per-atom data from the lammps instance.
+
+| valid values for `lmp_type`: | resulting return type: |
+| :--------------------------- | :--------------------- |
+| `LAMMPS_INT`                 | `Vector{Int32}`        |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
+| `LAMMPS_INT64`               | `Vector{Int64}`        |
+| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
+
+the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
+As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
+if you wish to modify the internal state of the LAMMPS instance.
+
+A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true)
     void_ptr = API.lammps_extract_atom(lmp, name)
