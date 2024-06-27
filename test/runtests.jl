@@ -15,7 +15,7 @@ LMP(["-screen", "none"]) do lmp
     @test_throws ErrorException command(lmp, "nonsense")
 end
 
-@testset "Ectract Setting/Global" begin
+@testset "Extract Setting/Global" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, """
                 atom_modify map yes
@@ -41,18 +41,21 @@ end
 
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
-        command(lmp, "box tilt large")
-        command(lmp, "region cell block 0 1.0 0 1.0 0 1.0 units box")
-        command(lmp, "create_box 1 cell")
-        command(lmp, "create_atoms 1 random 10 1 NULL")
-        command(lmp, "compute  press all pressure NULL pair");
-        command(lmp, "fix press all ave/time 1 1 1 c_press mode vector");
+        command(lmp, """
+            box tilt large
+            region cell block 0 1.0 0 1.0 0 1.0 units box
+            create_box 1 cell
+            create_atoms 1 random 10 1 NULL
+            compute  press all pressure NULL pair
+            fix press all ave/time 1 1 1 c_press mode vector
 
-        command(lmp, "variable var1 equal 1.0")
-        command(lmp, "variable var2 string \"hello\"")
-        command(lmp, "variable var3 atom x")
-        # TODO: x is 3d, how do we access more than the first dims
-        command(lmp, "variable var4 vector f_press")
+            variable var1 equal 1.0
+            variable var2 string \"hello\"
+            variable var3 atom x
+            # TODO: x is 3d, how do we access more than the first dims
+            variable var4 vector f_press
+            group odd id 1 3 5 7
+        """)
 
         @test extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
         @test extract_variable(lmp, "var2", VAR_STRING) == "hello"
@@ -62,6 +65,12 @@ end
         @test x_var == x[1, :]
         press = extract_variable(lmp, "var4", VAR_VECTOR)
         @test press isa Vector{Float64}
+
+        x_var_group = extract_variable(lmp, "var3", VAR_ATOM, "odd")
+        in_group = BitVector((1, 0, 1, 0, 1, 0, 1, 0, 0, 0))
+
+        @test x_var_group[in_group] == x[1, in_group]
+        @test all(x_var_group[.!in_group] .== 0)
     end
 end
 
