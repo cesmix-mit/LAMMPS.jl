@@ -522,7 +522,13 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
 
     expect = extract_variable_datatype(lmp, name)
     recieve = get_enum(lmp_variable)
-    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
+    if expect != recieve
+        if lmp_variable == VAR_EQUAL || lmp_variable == VAR_ATOM
+            API.lammps_Free(void_ptr)
+        end
+
+        error("TypeMismatch: Expected $expect got $recieve instead!")
+    end
 
     if lmp_variable == VAR_EQUAL
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
