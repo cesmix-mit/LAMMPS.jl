@@ -312,15 +312,15 @@ end
 
 Extract a global property from a LAMMPS instance.
 
-| valid values for `lmp_type`: | resulting return type: |
-| :--------------------------- | :--------------------- |
-| `LAMMPS_INT`                 | `Vector{Int32}`        |
-| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
-| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
-| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
-| `LAMMPS_INT64`               | `Vector{Int64}`        |
-| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
-| `LAMMPS_STRING`              | `String`               |
+| valid values for `lmp_type`: | resulting return type:    |
+| :--------------------------- | :------------------------ |
+| `LAMMPS_INT`                 | `Vector{Int32}`           |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`           |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`         |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
+| `LAMMPS_INT64`               | `Vector{Int64}`           |
+| `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
+| `LAMMPS_STRING`              | `String` (allways a copy) |
 
 the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
 the pointer to the underlying data is generally persistent, unless a clear command is issued.
@@ -328,6 +328,10 @@ However it's still recommended to only disable this, if you wish to modify the i
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
+!!! warning
+    Modifying the data through `extract_global` may lead to inconsistent internal data and thus may cause failures or crashes or bogus simulations.
+    In general it is thus usually better to use a LAMMPS input command that sets or changes these parameters.
+    Those will take care of all side effects and necessary updates of settings derived from such settings.
 
 A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
 """
