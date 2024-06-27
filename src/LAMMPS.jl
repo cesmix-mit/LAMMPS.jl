@@ -340,8 +340,8 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
     void_ptr == C_NULL && error("Unknown global variable $name")
 
     expect = extract_global_datatype(lmp, name)
-    recieve = get_enum(lmp_type)
-    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
+    receive = get_enum(lmp_type)
+    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
 
     ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
@@ -387,8 +387,8 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
     void_ptr == C_NULL && error("Unknown per-atom variable $name")
 
     expect = extract_atom_datatype(lmp, name)
-    recieve = get_enum(lmp_type)
-    expect != recieve && error("TypeMismatch: Expected $expect got $recieve instead!")
+    receive = get_enum(lmp_type)
+    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
 
     ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
@@ -525,14 +525,14 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, gr
     void_ptr == C_NULL && error("Unknown variable $name")
 
     expect = extract_variable_datatype(lmp, name)
-    recieve = get_enum(lmp_variable)
-    if expect != recieve
+    receive = get_enum(lmp_variable)
+    if expect != receive
         # the documentation instructs us to free the pointers for these styles specifically
         if expect in (API.LMP_VAR_ATOM, API.LMP_VAR_EQUAL)
             API.lammps_free(void_ptr)
         end
 
-        error("TypeMismatch: Expected $expect got $recieve instead!")
+        error("TypeMismatch: Expected $expect got $receive instead!")
     end
 
     if lmp_variable == VAR_EQUAL
