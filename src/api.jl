@@ -48,7 +48,7 @@ end
 end
 
 function lammps_open(argc, argv, comm, ptr)
-    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, Cint, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
+    ccall((:lammps_open, liblammps), Ptr{Cvoid}, (Cint, Ptr{Ptr{Cchar}}, MPI_Comm, Ptr{Ptr{Cvoid}}), argc, argv, comm, ptr)
 end
 
 function lammps_open_no_mpi(argc, argv, ptr)
@@ -128,7 +128,7 @@ function lammps_memory_usage(handle, meminfo)
 end
 
 function lammps_get_mpi_comm(handle)
-    ccall((:lammps_get_mpi_comm, liblammps), Cint, (Ptr{Cvoid},), handle)
+    ccall((:lammps_get_mpi_comm, liblammps), MPI_Comm, (Ptr{Cvoid},), handle)
 end
 
 function lammps_extract_setting(handle, keyword)
