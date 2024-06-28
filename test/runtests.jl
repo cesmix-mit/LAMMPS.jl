@@ -23,17 +23,17 @@ end
                 create_box 1 cell
         """)
 
-        @test extract_global(lmp, "dt", LAMMPS_DOUBLE)[] isa Float64
-        @test extract_global(lmp, "boxhi", LAMMPS_DOUBLE) == [1, 2, 3]
-        @test extract_global(lmp, "nlocal", LAMMPS_INT)[] == extract_setting(lmp, "nlocal") == 0
+        @test extract_global(lmp, "dt", LAMMPS.DOUBLE)[] isa Float64
+        @test extract_global(lmp, "boxhi", LAMMPS.DOUBLE) == [1, 2, 3]
+        @test extract_global(lmp, "nlocal", LAMMPS.INT)[] == extract_setting(lmp, "nlocal") == 0
 
-        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT)
-        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT)
+        with_copy1 = extract_global(lmp, "periodicity", LAMMPS.INT)
+        with_copy2 = extract_global(lmp, "periodicity", LAMMPS.INT)
 
         @test pointer(with_copy1) != pointer(with_copy2)
 
-        without_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
-        without_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
+        without_copy1 = extract_global(lmp, "periodicity", LAMMPS.INT, copy=false)
+        without_copy2 = extract_global(lmp, "periodicity", LAMMPS.INT, copy=false)
 
         @test pointer(with_copy1) != pointer(with_copy2)
 
@@ -53,15 +53,15 @@ end
             mass 1 1
         """)
 
-        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa  Vector{Float64}
-        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) == [1]
+        @test extract_atom(lmp, "mass", LAMMPS.DOUBLE) isa  Vector{Float64}
+        @test extract_atom(lmp, "mass", LAMMPS.DOUBLE) == [1]
 
-        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
+        x = extract_atom(lmp, "x", LAMMPS.DOUBLE_2D) 
         @test size(x) == (3, 27)
 
-        @test extract_atom(lmp, "image", LAMMPS_INT) isa Vector{Int32}
+        @test extract_atom(lmp, "image", LAMMPS.INT) isa Vector{Int32}
 
-        @test_throws ErrorException extract_atom(lmp, "v", LAMMPS_DOUBLE)
+        @test_throws ErrorException extract_atom(lmp, "v", LAMMPS.DOUBLE)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -86,22 +86,22 @@ end
             group odd id 1 3 5 7
         """)
 
-        @test extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
-        @test extract_variable(lmp, "var2", VAR_STRING) == "hello"
-        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
-        x_var = extract_variable(lmp, "var3", VAR_ATOM)
+        @test extract_variable(lmp, "var1", LAMMPS.VAR_EQUAL) == 1.0
+        @test extract_variable(lmp, "var2", LAMMPS.VAR_STRING) == "hello"
+        x = extract_atom(lmp, "x", LAMMPS.DOUBLE_2D)
+        x_var = extract_variable(lmp, "var3", LAMMPS.VAR_ATOM)
         @test length(x_var) == 10
         @test x_var == x[1, :]
-        press = extract_variable(lmp, "var4", VAR_VECTOR)
+        press = extract_variable(lmp, "var4", LAMMPS.VAR_VECTOR)
         @test press isa Vector{Float64}
 
-        x_var_group = extract_variable(lmp, "var3", VAR_ATOM, "odd")
+        x_var_group = extract_variable(lmp, "var3", LAMMPS.VAR_ATOM, "odd")
         in_group = BitVector((1, 0, 1, 0, 1, 0, 1, 0, 0, 0))
 
         @test x_var_group[in_group] == x[1, in_group]
         @test all(x_var_group[.!in_group] .== 0)
 
-        @test_throws ErrorException extract_variable(lmp, "var3", VAR_EQUAL)
+        @test_throws ErrorException extract_variable(lmp, "var3", LAMMPS.VAR_EQUAL)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -186,16 +186,16 @@ end
             compute pos all property/atom x y z
         """)
 
-        @test extract_compute(lmp, "pos", LMP_STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        @test extract_compute(lmp, "pos", LAMMPS.STYLE_ATOM, LAMMPS.TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS.DOUBLE_2D)
 
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR)[2] = 2
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+        extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_GLOBAL, LAMMPS.TYPE_VECTOR)[2] = 2
+        extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_GLOBAL, LAMMPS.TYPE_VECTOR, copy=false)[3] = 3
 
-        @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
-        @test extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+        @test extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_GLOBAL, LAMMPS.TYPE_SCALAR) == [0.0]
+        @test extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_GLOBAL, LAMMPS.TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LMP_STYLE_ATOM, TYPE_SCALAR)
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_ARRAY)
+        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_ATOM, LAMMPS.TYPE_SCALAR)
+        @test_throws ErrorException extract_compute(lmp, "thermo_temp", LAMMPS.STYLE_GLOBAL, LAMMPS.TYPE_ARRAY)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
