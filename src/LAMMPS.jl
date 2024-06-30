@@ -245,17 +245,19 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function _lammps_string(ptr::Ptr)
+function _string(ptr::Ptr)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
     return Base.unsafe_string(ptr)
 end
 
-function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer; own=false)
+function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-    return Base.unsafe_wrap(Array, ptr, shape, own=own)
+    result = Base.unsafe_wrap(Array, ptr, shape, own=own)
+
+    return copy ? Base.copy(result) : result
 end
 
-function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; own=false) where T
+function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false, own=false) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     shape[2] == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
@@ -266,32 +268,12 @@ function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; own=false) where T
 
     # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
     first_pointer = unsafe_load(ptr)
-    return Base.unsafe_wrap(Array, first_pointer, shape, own=own)
+    result = Base.unsafe_wrap(Array, first_pointer, shape, own=own)
 
+    return copy ? Base.copy(result) : result
 end
 
-function _lammps_copy(ptr::Ptr{T}, shape::Integer) where T <: Real
-    ptr == C_NULL && error("Copying NULL-pointer!")
-    return [unsafe_load(ptr, i) for i in 1:shape]
-end
-
-function _lammps_copy(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
-    ptr == C_NULL && error("Copying NULL-pointer!")
-
-    shape[2] == 0 && return Matrix{T}(undef, shape)
-
-    # If the pointers are evenly spaced, we can simply use the first pointer to read our matrix.
-    first_ptr = unsafe_load(ptr)
-    result = Matrix{T}(undef, shape)
-
-    for i in 1:prod(shape)
-        @inbounds result[i] = unsafe_load(first_ptr, i)
-    end
-
-    return result
-end
-
-function _lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
+function _reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
     T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
     T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
     T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
@@ -366,9 +348,9 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
     receive = get_enum(lmp_type)
     expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
 
-    ptr = _lammps_reinterpret(lmp_type, void_ptr)
+    ptr = _reinterpret(lmp_type, void_ptr)
 
-    lmp_type == LAMMPS_STRING && return _lammps_string(ptr)
+    lmp_type == LAMMPS_STRING && return _string(ptr)
 
     if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
         length = 3
@@ -378,7 +360,7 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
         length = 1
     end
 
-    return copy ? _lammps_copy(ptr, length) :  _lammps_wrap(ptr, length)
+    return _extract(ptr, length; copy=copy)
 end
 
 function extract_global_datatype(lmp::LMP, name)
@@ -419,12 +401,12 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
     receive = get_enum(lmp_type)
     expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
 
-    ptr = _lammps_reinterpret(lmp_type, void_ptr)
+    ptr = _reinterpret(lmp_type, void_ptr)
 
     if name == "mass"
         length = extract_global(lmp, "ntypes", LAMMPS_INT)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
-        return copy ? _lammps_copy(ptr, length) : _lammps_wrap(ptr, length)
+        return _extract(ptr, length; copy=copy)
     end
 
     length = extract_setting(lmp, "nlocal")
@@ -434,10 +416,10 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
         # length is a Int32 and lammps_wrap expects a NTuple, so it's
         # neccecary to use Int32 for count as well
         count = name == "quat" ? Int32(4) : Int32(3)
-        return copy ? _lammps_copy(ptr, (count, length)) : _lammps_wrap(ptr, (count, length))
+        return _extract(ptr, (count, length); copy=copy)
     end
 
-    return copy ? _lammps_copy(ptr, length) : _lammps_wrap(ptr, length)
+    return _extract(ptr, length; copy=copy)
 end
 
 function extract_atom_datatype(lmp::LMP, name)
@@ -494,13 +476,13 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
-        ptr = _lammps_reinterpret(LAMMPS_INT, void_ptr)
-        return copy ? _lammps_copy(ptr, 1) : _lammps_wrap(ptr, 1)
+        ptr = _reinterpret(LAMMPS_INT, void_ptr)
+        return _extract(ptr, 1; copy=copy)
     end
 
     if lmp_type == TYPE_SCALAR
-        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return copy ? _lammps_copy(ptr, 1) : _lammps_wrap(ptr, 1)
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _extract(ptr, 1; copy=copy)
     end
 
     if lmp_type == TYPE_VECTOR
@@ -508,8 +490,8 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
             extract_setting(lmp, "nlocal") :
             extract_compute(lmp, name, style, SIZE_VECTOR)[]
 
-        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return  copy ? _lammps_copy(ptr, ndata) : _lammps_wrap(ptr, ndata)
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return  _extract(ptr, ndata; copy=copy)
     end
 
     ndata = (style == STYLE_ATOM) ?
@@ -517,9 +499,9 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
         extract_compute(lmp, name, style, SIZE_ROWS)[]
 
     count = extract_compute(lmp, name, style, SIZE_COLS)[]
-    ptr = _lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+    ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
-    return copy ? _lammps_copy(ptr, (count, ndata)) : _lammps_wrap(ptr, (count, ndata))
+    return _extract(ptr, (count, ndata); copy=copy)
 end
 
 """
@@ -566,7 +548,7 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
     end
 
     if lmp_variable == VAR_EQUAL
-        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
         result = unsafe_load(ptr)
         API.lammps_free(ptr)
         return result
@@ -577,23 +559,23 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         # "LMP_SIZE_VECTOR" is the only group name that won't be ignored for Vector Style Variables.
         # This isn't exposed to the high level API as it causes type instability for something that probably won't
         # ever be used outside of this implementation
-        ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
+        ndata_ptr = _reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
 
-        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return copy ? _lammps_copy(ptr, ndata) : _lammps_wrap(ptr, ndata)
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _extract(ptr, ndata; copy=copy)
     end
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
-        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
         # lammps expects us to take ownership of the data
-        return _lammps_wrap(ptr, ndata; own=true)
+        return _extract(ptr, ndata; own=true)
     end
 
-    ptr = _lammps_reinterpret(LAMMPS_STRING, void_ptr)
-    return _lammps_string(ptr)
+    ptr = _reinterpret(LAMMPS_STRING, void_ptr)
+    return _string(ptr)
 end
 
 function extract_variable_datatype(lmp::LMP, name)
