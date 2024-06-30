@@ -4,7 +4,37 @@ include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
-       extract_variable
+       extract_variable,
+
+       # _LMP_DATATYPE
+       LAMMPS_NONE,
+       LAMMPS_INT,
+       LAMMPS_INT_2D,
+       LAMMPS_DOUBLE,
+       LAMMPS_DOUBLE_2D,
+       LAMMPS_INT64,
+       LAMMPS_INT64_2D,
+       LAMMPS_STRING,
+
+       # _LMP_TYPE
+       TYPE_SCALAR,
+       TYPE_VECTOR,
+       TYPE_ARRAY,
+       SIZE_VECTOR,
+       SIZE_ROWS,
+       SIZE_COLS,
+
+       # _LMP_VARIABLE
+       VAR_EQUAL,
+       VAR_ATOM,
+       VAR_VECTOR,
+       VAR_STRING,
+
+       # _LMP_STYLE_CONST
+       STYLE_GLOBAL,
+       STYLE_ATOM,
+       STYLE_LOCAL
+
 
 using Preferences
 
@@ -13,14 +43,14 @@ get_enum(::TypeEnum{N}) where N = N
 
 struct _LMP_DATATYPE{N} <: TypeEnum{N} end
 
-const NONE = _LMP_DATATYPE{API.LAMMPS_NONE}()
-const INT = _LMP_DATATYPE{API.LAMMPS_INT}()
-const INT_2D = _LMP_DATATYPE{API.LAMMPS_INT_2D}()
-const DOUBLE = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
-const DOUBLE_2D = _LMP_DATATYPE{API.LAMMPS_DOUBLE_2D}()
-const INT64 = _LMP_DATATYPE{API.LAMMPS_INT64}()
-const INT64_2D = _LMP_DATATYPE{API.LAMMPS_INT64_2D}()
-const STRING = _LMP_DATATYPE{API.LAMMPS_STRING}()
+const LAMMPS_NONE = _LMP_DATATYPE{API.LAMMPS_NONE}()
+const LAMMPS_INT = _LMP_DATATYPE{API.LAMMPS_INT}()
+const LAMMPS_INT_2D = _LMP_DATATYPE{API.LAMMPS_INT_2D}()
+const LAMMPS_DOUBLE = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
+const LAMMPS_DOUBLE_2D = _LMP_DATATYPE{API.LAMMPS_DOUBLE_2D}()
+const LAMMPS_INT64 = _LMP_DATATYPE{API.LAMMPS_INT64}()
+const LAMMPS_INT64_2D = _LMP_DATATYPE{API.LAMMPS_INT64_2D}()
+const LAMMPS_STRING = _LMP_DATATYPE{API.LAMMPS_STRING}()
 
 struct _LMP_TYPE{N} <: TypeEnum{N} end
 
@@ -249,16 +279,16 @@ function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
 end
 
 function _lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
-    T === INT && return Base.reinterpret(Ptr{Int32}, ptr)
-    T === INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
-    T === DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
-    T === DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
-    T === INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
-    T === INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
-    T === STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
+    T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
+    T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
+    T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
+    T === LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
+    T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
+    T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
+    T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
 
-_is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (INT_2D, DOUBLE_2D, INT64_2D)
+_is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
     extract_setting(lmp::LMP, name::String)::Int32
@@ -324,7 +354,7 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
 
     ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
-    lmp_type == STRING && return _lammps_string(ptr)
+    lmp_type == LAMMPS_STRING && return _lammps_string(ptr)
 
     if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
         length = 3
@@ -372,7 +402,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
     ptr = _lammps_reinterpret(lmp_type, void_ptr)
 
     if name == "mass"
-        length = extract_global(lmp, "ntypes", INT, copy=false)[]
+        length = extract_global(lmp, "ntypes", LAMMPS_INT, copy=false)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
         return _lammps_wrap(ptr, length, copy)
     end
@@ -403,9 +433,9 @@ Since computes may provide multiple kinds of data, it is required to set style a
 
 | valid values for `style`: |
 | :------------------------ |
-| `LMP_STYLE_GLOBAL`        |
-| `LMP_STYLE_ATOM`          |
-| `LMP_STYLE_LOCAL`         |
+| `STYLE_GLOBAL`            |
+| `STYLE_ATOM`              |
+| `STYLE_LOCAL`             |
 
 | valid values for `lmp_type`: | resulting return type: |
 | :--------------------------- | :--------------------- |
@@ -443,12 +473,12 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
-        ptr = _lammps_reinterpret(INT, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_INT, void_ptr)
         return _lammps_wrap(ptr, 1, copy)
     end
 
     if lmp_type == TYPE_SCALAR
-        ptr = _lammps_reinterpret(DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         return _lammps_wrap(ptr, 1, copy)
     end
 
@@ -457,7 +487,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
             extract_setting(lmp, "nlocal") :
             extract_compute(lmp, name, style, SIZE_VECTOR, copy=false)[]
 
-        ptr = _lammps_reinterpret(DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         return _lammps_wrap(ptr, ndata, copy)
     end
 
@@ -466,7 +496,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
         extract_compute(lmp, name, style, SIZE_ROWS, copy=false)[]
 
     count = extract_compute(lmp, name, style, SIZE_COLS, copy=false)[]
-    ptr = _lammps_reinterpret(DOUBLE_2D, void_ptr)
+    ptr = _lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
     return _lammps_wrap(ptr, (count, ndata), copy)
 end
@@ -515,7 +545,7 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
     end
 
     if lmp_variable == VAR_EQUAL
-        ptr = _lammps_reinterpret(DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         result = unsafe_load(ptr)
         API.lammps_free(ptr)
         return result
@@ -526,24 +556,24 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         # "LMP_SIZE_VECTOR" is the only group name that won't be ignored for Vector Style Variables.
         # This isn't exposed to the high level API as it causes type instability for something that probably won't
         # ever be used outside of this implementation
-        ndata_ptr = _lammps_reinterpret(INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
+        ndata_ptr = _lammps_reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
 
-        ptr = _lammps_reinterpret(DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         return _lammps_wrap(ptr, ndata, copy)
     end
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
 
-        ptr = _lammps_reinterpret(DOUBLE, void_ptr)
+        ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
         result = _lammps_wrap(ptr, ndata, true)
         API.lammps_free(ptr)
         return result
     end
 
-    ptr = _lammps_reinterpret(STRING, void_ptr)
+    ptr = _lammps_reinterpret(LAMMPS_STRING, void_ptr)
     return _lammps_string(ptr)
 end
 
