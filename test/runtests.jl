@@ -106,6 +106,26 @@ end
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
+
+    # check if the memory allocated by LAMMPS persists after closing the instance
+    lmp = LMP(["-screen", "none"])
+    command(lmp, """
+        atom_modify map yes
+        region cell block 0 3 0 3 0 3
+        create_box 1 cell
+        lattice sc 1
+        create_atoms 1 region cell
+        mass 1 1
+
+        variable var atom id
+    """)
+
+    var = extract_variable(lmp, "var", VAR_ATOM)
+    var_copy = copy(var)
+    LAMMPS.close!(lmp)
+
+    @test var == var_copy
+
 end
 
 @testset "gather/scatter" begin

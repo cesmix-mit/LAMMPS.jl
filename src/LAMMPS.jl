@@ -250,12 +250,12 @@ function _lammps_string(ptr::Ptr)
     return Base.unsafe_string(ptr)
 end
 
-function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer)
+function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer; own=false)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-    return Base.unsafe_wrap(Array, ptr, shape, own=false)
+    return Base.unsafe_wrap(Array, ptr, shape, own=own)
 end
 
-function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
+function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; own=false) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     shape[2] == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
@@ -266,7 +266,7 @@ function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
 
     # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
     first_pointer = unsafe_load(ptr)
-    return Base.unsafe_wrap(Array, first_pointer, shape, own=false)
+    return Base.unsafe_wrap(Array, first_pointer, shape, own=own)
 
 end
 
@@ -579,11 +579,9 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
-
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        result = _lammps_copy(ptr, ndata)
-        API.lammps_free(ptr)
-        return result
+        # lammps expects us to take ownership of the data
+        return _lammps_wrap(ptr, ndata; own=true)
     end
 
     ptr = _lammps_reinterpret(LAMMPS_STRING, void_ptr)
