@@ -252,12 +252,16 @@ end
 
 function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-    result = Base.unsafe_wrap(Array, ptr, shape, own=own)
+    result = Base.unsafe_wrap(Array, ptr, shape; own=false)
+
+    if own
+        finalizer(API.lammps_free, result)
+    end
 
     return copy ? Base.copy(result) : result
 end
 
-function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false, own=false) where T
+function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     prod(shape) == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
@@ -268,8 +272,7 @@ function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false, own=false) w
 
     # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
     first_pointer = unsafe_load(ptr)
-    result = Base.unsafe_wrap(Array, first_pointer, shape, own=own)
-
+    result = Base.unsafe_wrap(Array, first_pointer, shape; own=false)
     return copy ? Base.copy(result) : result
 end
 
