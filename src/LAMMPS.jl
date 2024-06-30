@@ -250,32 +250,45 @@ function _lammps_string(ptr::Ptr)
     return Base.unsafe_string(ptr)
 end
 
-function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer, copy=true)
+function _lammps_wrap(ptr::Ptr{<:Real}, shape::Integer)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-
-    result = Base.unsafe_wrap(Array, ptr, shape, own=false)
-
-    return copy ? Base.copy(result) : result
+    return Base.unsafe_wrap(Array, ptr, shape, own=false)
 end
 
-function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}, copy=true) where T
+function _lammps_wrap(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
-    (count, ndata) = shape
+    shape[2] == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
 
-    ndata == 0 && return Matrix{T}(undef, count, ndata) # There is no data that can be wrapped
+    # TODO: implement a debug mode to do this assert
+    # pointers = Base.unsafe_wrap(Array, ptr, ndata)
+    # @assert all(diff(pointers) .== count*sizeof(T))
 
-    pointers = Base.unsafe_wrap(Array, ptr, ndata)
+    # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
+    first_pointer = unsafe_load(ptr)
+    return Base.unsafe_wrap(Array, first_pointer, shape, own=false)
 
-    # This assert verifies that all the pointers are evenly spaced according to count.
-    # While it seems like this is allways the case, it's not explicitly stated in the
-    # API documentation. It also helps to verify, that the count is correct.
-    @assert all(diff(pointers) .== count*sizeof(T))
+end
 
-    # It the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
-    result = Base.unsafe_wrap(Array, pointers[1], shape, own=false)
+function _lammps_copy(ptr::Ptr{T}, shape::Integer) where T <: Real
+    ptr == C_NULL && error("Copying NULL-pointer!")
+    return [unsafe_load(ptr, i) for i in 1:shape]
+end
 
-    return copy ? Base.copy(result) : result
+function _lammps_copy(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
+    ptr == C_NULL && error("Copying NULL-pointer!")
+
+    shape[2] == 0 && return Matrix{T}(undef, shape)
+
+    # If the pointers are evenly spaced, we can simply use the first pointer to read our matrix.
+    first_ptr = unsafe_load(ptr)
+    result = Matrix{T}(undef, shape)
+
+    for i in 1:prod(shape)
+        @inbounds result[i] = unsafe_load(first_ptr, i)
+    end
+
+    return result
 end
 
 function _lammps_reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
@@ -364,7 +377,7 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
         length = 1
     end
 
-    return _lammps_wrap(ptr, length, copy)
+    return copy ? _lammps_copy(ptr, length) :  _lammps_wrap(ptr, length)
 end
 
 function extract_global_datatype(lmp::LMP, name)
@@ -404,7 +417,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
     if name == "mass"
         length = extract_global(lmp, "ntypes", LAMMPS_INT, copy=false)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
-        return _lammps_wrap(ptr, length, copy)
+        return copy ? _lammps_copy(ptr, length) : _lammps_wrap(ptr, length)
     end
 
     length = extract_setting(lmp, "nlocal")
@@ -414,10 +427,10 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=true
         # length is a Int32 and lammps_wrap expects a NTuple, so it's
         # neccecary to use Int32 for count as well
         count = name == "quat" ? Int32(4) : Int32(3)
-        return _lammps_wrap(ptr, (count, length), copy)
+        return copy ? _lammps_copy(ptr, (count, length)) : _lammps_wrap(ptr, (count, length))
     end
 
-    return _lammps_wrap(ptr, length, copy)
+    return copy ? _lammps_copy(ptr, length) : _lammps_wrap(ptr, length)
 end
 
 function extract_atom_datatype(lmp::LMP, name)
@@ -474,12 +487,12 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
         ptr = _lammps_reinterpret(LAMMPS_INT, void_ptr)
-        return _lammps_wrap(ptr, 1, copy)
+        return copy ? _lammps_copy(ptr, 1) : _lammps_wrap(ptr, 1)
     end
 
     if lmp_type == TYPE_SCALAR
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return _lammps_wrap(ptr, 1, copy)
+        return copy ? _lammps_copy(ptr, 1) : _lammps_wrap(ptr, 1)
     end
 
     if lmp_type == TYPE_VECTOR
@@ -488,7 +501,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
             extract_compute(lmp, name, style, SIZE_VECTOR, copy=false)[]
 
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return _lammps_wrap(ptr, ndata, copy)
+        return  copy ? _lammps_copy(ptr, ndata) : _lammps_wrap(ptr, ndata)
     end
 
     ndata = (style == STYLE_ATOM) ?
@@ -498,7 +511,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
     count = extract_compute(lmp, name, style, SIZE_COLS, copy=false)[]
     ptr = _lammps_reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
-    return _lammps_wrap(ptr, (count, ndata), copy)
+    return copy ? _lammps_copy(ptr, (count, ndata)) : _lammps_wrap(ptr, (count, ndata))
 end
 
 """
@@ -561,14 +574,14 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         API.lammps_free(ndata_ptr)
 
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return _lammps_wrap(ptr, ndata, copy)
+        return copy ? _lammps_copy(ptr, ndata) : _lammps_wrap(ptr, ndata)
     end
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
 
         ptr = _lammps_reinterpret(LAMMPS_DOUBLE, void_ptr)
-        result = _lammps_wrap(ptr, ndata, true)
+        result = _lammps_copy(ptr, ndata)
         API.lammps_free(ptr)
         return result
     end
