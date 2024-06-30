@@ -27,8 +27,8 @@ end
         @test extract_global(lmp, "boxhi", LAMMPS_DOUBLE) == [1, 2, 3]
         @test extract_global(lmp, "nlocal", LAMMPS_INT)[] == extract_setting(lmp, "nlocal") == 0
 
-        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT)
-        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT)
+        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
+        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
 
         @test pointer(with_copy1) != pointer(with_copy2)
 
@@ -208,7 +208,7 @@ end
 
         @test extract_compute(lmp, "pos", STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
 
-        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR)[2] = 2
+        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
         extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
 
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
