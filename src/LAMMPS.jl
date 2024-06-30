@@ -260,7 +260,7 @@ end
 function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false, own=false) where T
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
-    shape[2] == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
+    prod(shape) == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
 
     # TODO: implement a debug mode to do this assert
     # pointers = Base.unsafe_wrap(Array, ptr, ndata)
