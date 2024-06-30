@@ -360,7 +360,7 @@ A full list of global variables can be found here: <https://docs.lammps.org/Libr
 """
 function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
     void_ptr = API.lammps_extract_global(lmp, name)
-    void_ptr == C_NULL && error("Unknown global variable $name")
+    void_ptr == C_NULL && throw(KeyError("Unknown global variable $name"))
 
     expect = extract_global_datatype(lmp, name)
     receive = get_enum(lmp_type)
@@ -413,7 +413,7 @@ A table with suported name keywords can be found here: <https://docs.lammps.org/
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
-    void_ptr == C_NULL && error("Unknown per-atom variable $name")
+    void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
     expect = extract_atom_datatype(lmp, name)
     receive = get_enum(lmp_type)
@@ -487,7 +487,7 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 ```
 """
 function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
-    API.lammps_has_id(lmp, "compute", name) != 1 && error("Unknown compute $name")
+    API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
 
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
     void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
@@ -545,14 +545,14 @@ the kwarg `group` determines for which atoms the variable will be extracted. It'
 will be zeroed out. By default, all atoms will be extracted.
 """
 function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
-    lmp_variable != VAR_ATOM && !isnothing(group) && error("the group parameter is only supported for per atom variables!")
+    lmp_variable != VAR_ATOM && !isnothing(group) && throw(ArgumentError("the group parameter is only supported for per atom variables!"))
 
     if isnothing(group)
         group = C_NULL
     end
 
     void_ptr = API.lammps_extract_variable(lmp, name, group)
-    void_ptr == C_NULL && error("Unknown variable $name")
+    void_ptr == C_NULL && throw(KeyError("Unknown variable $name"))
 
     expect = extract_variable_datatype(lmp, name)
     receive = get_enum(lmp_variable)
