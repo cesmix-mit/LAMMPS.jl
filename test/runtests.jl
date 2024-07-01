@@ -4,7 +4,7 @@ using MPI
 
 @test_logs (:warn,"LAMMPS library path changed, you will need to restart Julia for the change to take effect") LAMMPS.set_library!(LAMMPS.locate())
 
-LMP(["-screen", "none"]) do lmp
+LMP() do lmp
     @test LAMMPS.version(lmp) >= 0
 end
 
