@@ -255,13 +255,19 @@ function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
     result = Base.unsafe_wrap(Array, ptr, shape; own=false)
 
     if own
-        finalizer(API.lammps_free, result)
+        @static if VERSION >= v"1.11-dev"
+            finalizer(API.lammps_free, result.ref.mem)
+        else
+            finalizer(API.lammps_free, result)
+        end
     end
 
     return copy ? Base.copy(result) : result
 end
 
 function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false) where T
+    # The `own` kwarg is not implemented for 2D data, as this is currently not used anywhere
+
     ptr == C_NULL && error("Wrapping NULL-pointer!")
 
     prod(shape) == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
