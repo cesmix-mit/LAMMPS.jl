@@ -254,6 +254,12 @@ function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
     result = Base.unsafe_wrap(Array, ptr, shape; own=false)
 
+    if own && copy
+        result_copy = Base.copy(result)
+        API.lammps_free(result)
+        return result_copy
+    end
+
     if own
         @static if VERSION >= v"1.11-dev"
             finalizer(API.lammps_free, result.ref.mem)
@@ -529,7 +535,11 @@ For other variable styles, their string value is returned.
 | `VAR_VECTOR`                     | `Vector{Float64}` |
 
 the kwarg `copy` determies wheter a copy of the underlying data is made.
-`copy` is only aplicable for `VAR_VECTOR`. For all other variable types, a copy will be made regardless.
+`copy` is only aplicable for `VAR_VECTOR` and `VAR_ATOM`. For all other variable types, a copy will be made regardless.
+The underlying LAMMPS API call for `VAR_ATOM` internally allways creates a copy of the data. As the memory for this gets allocated by LAMMPS instead of julia,
+it needs to be dereferenced using `LAMMPS.API.lammps_free` instead of through the garbage collector. 
+If `copy=false` this gets acieved by registering `LAMMPS.API.lammps_free` as a finalizer for the returned data.
+Alternatively, setting `copy=true` will instead create a new copy of the data. The lammps allocated block of memory will then be freed immediately.
 
 the kwarg `group` determines for which atoms the variable will be extracted. It's only aplicable for
 `VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
@@ -580,7 +590,7 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         ndata = extract_setting(lmp, "nlocal")
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
         # lammps expects us to take ownership of the data
-        return _extract(ptr, ndata; own=true)
+        return _extract(ptr, ndata; copy=copy, own=true)
     end
 
     ptr = _reinterpret(LAMMPS_STRING, void_ptr)
