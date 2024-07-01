@@ -3,9 +3,77 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       gather, scatter!, group_to_atom_ids, get_category_ids
+       extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
+       extract_variable,
+
+       # _LMP_DATATYPE
+       LAMMPS_NONE,
+       LAMMPS_INT,
+       LAMMPS_INT_2D,
+       LAMMPS_DOUBLE,
+       LAMMPS_DOUBLE_2D,
+       LAMMPS_INT64,
+       LAMMPS_INT64_2D,
+       LAMMPS_STRING,
+
+       # _LMP_TYPE
+       TYPE_SCALAR,
+       TYPE_VECTOR,
+       TYPE_ARRAY,
+       SIZE_VECTOR,
+       SIZE_ROWS,
+       SIZE_COLS,
+
+       # _LMP_VARIABLE
+       VAR_EQUAL,
+       VAR_ATOM,
+       VAR_VECTOR,
+       VAR_STRING,
+
+       # _LMP_STYLE_CONST
+       STYLE_GLOBAL,
+       STYLE_ATOM,
+       STYLE_LOCAL
+
 
 using Preferences
+
+abstract type TypeEnum{N} end
+get_enum(::TypeEnum{N}) where N = N
+
+struct _LMP_DATATYPE{N} <: TypeEnum{N} end
+
+const LAMMPS_NONE = _LMP_DATATYPE{API.LAMMPS_NONE}()
+const LAMMPS_INT = _LMP_DATATYPE{API.LAMMPS_INT}()
+const LAMMPS_INT_2D = _LMP_DATATYPE{API.LAMMPS_INT_2D}()
+const LAMMPS_DOUBLE = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
+const LAMMPS_DOUBLE_2D = _LMP_DATATYPE{API.LAMMPS_DOUBLE_2D}()
+const LAMMPS_INT64 = _LMP_DATATYPE{API.LAMMPS_INT64}()
+const LAMMPS_INT64_2D = _LMP_DATATYPE{API.LAMMPS_INT64_2D}()
+const LAMMPS_STRING = _LMP_DATATYPE{API.LAMMPS_STRING}()
+
+struct _LMP_TYPE{N} <: TypeEnum{N} end
+
+const TYPE_SCALAR = _LMP_TYPE{API.LMP_TYPE_SCALAR}()
+const TYPE_VECTOR = _LMP_TYPE{API.LMP_TYPE_VECTOR}()
+const TYPE_ARRAY = _LMP_TYPE{API.LMP_TYPE_ARRAY}()
+const SIZE_VECTOR = _LMP_TYPE{API.LMP_SIZE_VECTOR}()
+const SIZE_ROWS = _LMP_TYPE{API.LMP_SIZE_ROWS}()
+const SIZE_COLS = _LMP_TYPE{API.LMP_SIZE_COLS}()
+
+struct _LMP_VARIABLE{N} <: TypeEnum{N} end
+
+const VAR_EQUAL = _LMP_VARIABLE{API.LMP_VAR_EQUAL}()
+const VAR_ATOM = _LMP_VARIABLE{API.LMP_VAR_ATOM}()
+const VAR_VECTOR = _LMP_VARIABLE{API.LMP_VAR_VECTOR}()
+const VAR_STRING = _LMP_VARIABLE{API.LMP_VAR_STRING}()
+
+# these are not defined as TypeEnum as they don't carry type information
+const _LMP_STYLE_CONST = API._LMP_STYLE_CONST
+
+const STYLE_GLOBAL = API.LMP_STYLE_GLOBAL
+const STYLE_ATOM = API.LMP_STYLE_ATOM
+const STYLE_LOCAL = API.LMP_STYLE_LOCAL
 
 """
     locate()
@@ -177,239 +245,362 @@ function get_natoms(lmp::LMP)
     Int64(API.lammps_get_natoms(lmp))
 end
 
-function dtype2type(dtype::API._LMP_DATATYPE_CONST)
-    if dtype == API.LAMMPS_INT
-        type = Ptr{Int32}
-    elseif dtype == API.LAMMPS_INT_2D
-        type = Ptr{Ptr{Int32}}
-    elseif dtype == API.LAMMPS_INT64
-        type = Ptr{Int64}
-    elseif dtype == API.LAMMPS_INT64_2D
-        type = Ptr{Ptr{Int64}}
-    elseif dtype == API.LAMMPS_DOUBLE
-        type = Ptr{Float64}
-    elseif dtype == API.LAMMPS_DOUBLE_2D
-        type = Ptr{Ptr{Float64}}
-    elseif dtype == API.LAMMPS_STRING
-        type = Ptr{Cchar}
-    else
-        @assert false "Unknown dtype: $dtype"
-    end
-    return type
+function _string(ptr::Ptr)
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+    return Base.unsafe_string(ptr)
 end
 
-"""
-    extract_global(lmp, name, dtype=nothing)
-"""
-function extract_global(lmp::LMP, name, dtype=nothing)
-    if dtype === nothing
-        dtype = API.lammps_extract_global_datatype(lmp, name)
-    end
-    dtype = API._LMP_DATATYPE_CONST(dtype)
-    type = dtype2type(dtype)
+function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+    result = Base.unsafe_wrap(Array, ptr, shape; own=false)
 
-    ptr = API.lammps_extract_global(lmp, name)
-    ptr = reinterpret(type, ptr)
-
-    if ptr !== C_NULL
-        if dtype == API.LAMMPS_STRING
-            return Base.unsafe_string(ptr)
-        end
-        # TODO: deal with non-scalar data
-        return Base.unsafe_load(ptr)
-    end
-end
-
-function unsafe_wrap(ptr, shape)
-    if length(shape) > 1
-        # We got a list of ptrs,
-        # but the first pointer points to the whole data
-        ptr = Base.unsafe_load(ptr)
-
-        @assert length(shape) == 2
-
-        # Note: Julia like Fortran is column-major
-        #       so the data is transposed from Julia's perspective
-        shape = reverse(shape)
+    if own && copy
+        result_copy = Base.copy(result)
+        API.lammps_free(result)
+        return result_copy
     end
 
-    # TODO: Who is responsible for freeing this data
-    array = Base.unsafe_wrap(Array, ptr, shape, own=false)
-    return array
-end
-
-"""
-    extract_atom(lmp, name, dtype=nothing, axes1, axes2)
-"""
-function extract_atom(lmp::LMP, name,
-                      dtype::Union{Nothing, API._LMP_DATATYPE_CONST} = nothing,
-                      axes1=nothing, axes2=nothing)
-
-
-    if dtype === nothing
-        dtype = API.lammps_extract_atom_datatype(lmp, name)
-        dtype = API._LMP_DATATYPE_CONST(dtype)
-    end
-
-    if axes1 === nothing
-        if name == "mass"
-            axes1 = extract_global(lmp, "ntypes") + 1
+    if own
+        @static if VERSION >= v"1.11-dev"
+            finalizer(API.lammps_free, result.ref.mem)
         else
-            axes1 = extract_global(lmp, "nlocal") % Int
+            finalizer(API.lammps_free, result)
         end
     end
 
-    if axes2 === nothing
-        if dtype in (API.LAMMPS_INT_2D, API.LAMMPS_INT64_2D, API.LAMMPS_DOUBLE_2D)
-            # TODO: Other fields?
-            if name in ("x", "v", "f", "angmom", "torque", "csforce", "vforce")
-                axes2 = 3
-            else
-                axes2 = 2
-            end
-        end
-    end
+    return copy ? Base.copy(result) : result
+end
 
-    if axes2 !== nothing
-        shape = (axes1, axes2)
+function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false) where T
+    # The `own` kwarg is not implemented for 2D data, as this is currently not used anywhere
+
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+
+    prod(shape) == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
+
+    # TODO: implement a debug mode to do this assert
+    # pointers = Base.unsafe_wrap(Array, ptr, ndata)
+    # @assert all(diff(pointers) .== count*sizeof(T))
+
+    # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
+    first_pointer = unsafe_load(ptr)
+    result = Base.unsafe_wrap(Array, first_pointer, shape; own=false)
+    return copy ? Base.copy(result) : result
+end
+
+function _reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
+    T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
+    T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
+    T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
+    T === LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
+    T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
+    T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
+    T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
+end
+
+_is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
+
+"""
+    extract_setting(lmp::LMP, name::String)::Int32
+
+Query LAMMPS about global settings.
+
+A full list of settings can be found here: <https://docs.lammps.org/Library_properties.html>
+
+# Examples
+```julia
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, \"""
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+        \""")
+
+        extract_setting(lmp, "dimension") |> println # 3
+        extract_setting(lmp, "nlocal") |> println # 27
+    end
+```
+"""
+function extract_setting(lmp::LMP, name::String)::Int32
+    return API.lammps_extract_setting(lmp, name)
+end
+
+"""
+    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+
+Extract a global property from a LAMMPS instance.
+
+| valid values for `lmp_type`: | resulting return type:    |
+| :--------------------------- | :------------------------ |
+| `LAMMPS_INT`                 | `Vector{Int32}`           |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`           |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`         |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
+| `LAMMPS_INT64`               | `Vector{Int64}`           |
+| `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
+| `LAMMPS_STRING`              | `String` (allways a copy) |
+
+Scalar values get returned as a vector with a single element. This way it's possible to
+modify the internal state of the LAMMPS instance even if the data is scalar.
+
+!!! info
+    Closing the LAMMPS instance or issuing a clear command after calling this method
+    will result in the returned data becoming invalid. To prevent this, set `copy=true`.
+
+!!! warning
+    Modifying the data through `extract_global` may lead to inconsistent internal data and thus may cause failures or crashes or bogus simulations.
+    In general it is thus usually better to use a LAMMPS input command that sets or changes these parameters.
+    Those will take care of all side effects and necessary updates of settings derived from such settings.
+
+A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
+"""
+function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+    void_ptr = API.lammps_extract_global(lmp, name)
+    void_ptr == C_NULL && throw(KeyError("Unknown global variable $name"))
+
+    expect = extract_global_datatype(lmp, name)
+    receive = get_enum(lmp_type)
+    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
+
+    ptr = _reinterpret(lmp_type, void_ptr)
+
+    lmp_type == LAMMPS_STRING && return _string(ptr)
+
+    if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
+        length = 3
+    elseif name in ("special_lj", "special_coul")
+        length = 4
     else
-        shape = (axes1, )
+        length = 1
     end
 
-    type = dtype2type(dtype)
-    ptr = API.lammps_extract_atom(lmp, name)
-    ptr = reinterpret(type, ptr)
-
-    unsafe_wrap(ptr, shape)
+    return _extract(ptr, length; copy=copy)
 end
 
-function unsafe_extract_compute(lmp::LMP, name, style, type)
-    if type == API.LMP_TYPE_SCALAR
-        if style == API.LMP_STYLE_GLOBAL
-            dtype = Ptr{Float64}
-        elseif style == API.LMP_STYLE_LOCAL
-            dtype = Ptr{Cint}
-        elseif style == API.LMP_STYLE_ATOM
-            return nothing
-        end
-        extract = true
-    elseif type == API.LMP_TYPE_VECTOR
-        dtype = Ptr{Float64}
-        extract = false
-    elseif type == API.LMP_TYPE_ARRAY
-        dtype = Ptr{Ptr{Float64}}
-        extract = false
-    elseif type == API.LMP_SIZE_COLS
-        dtype = Ptr{Cint}
-        extract = true
-    elseif type == API.LMP_SIZE_ROWS ||
-           type == API.LMP_SIZE_VECTOR
-        if style == API.LMP_STYLE_ATOM
-            return nothing
-        end
-        dtype = Ptr{Cint}
-        extract = true
-    else
-        @assert false "Unknown type: $type"
-    end
-
-    ptr = API.lammps_extract_compute(lmp, name, style, type)
-    ptr == C_NULL && check(lmp)
-
-    if ptr == C_NULL
-        error("Could not extract_compute $name with $style and $type")
-    end
-
-    ptr = reinterpret(dtype, ptr)
-    if extract
-        return Base.unsafe_load(ptr)
-    end
-    return ptr
+function extract_global_datatype(lmp::LMP, name)
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(lmp, name))
 end
 
 """
-    extract_compute(lmp, name, style, type)
-"""
-function extract_compute(lmp::LMP, name, style, type)
-    ptr_or_value = unsafe_extract_compute(lmp, name, style, type)
-    if style == API.LMP_TYPE_SCALAR
-        return ptr_or_value
-    end
-    if ptr_or_value === nothing
-        return nothing
-    end
-    ptr = ptr_or_value::Ptr
+    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
 
-    if style in (API.LMP_STYLE_GLOBAL, API.LMP_STYLE_LOCAL)
-        if type == API.LMP_TYPE_VECTOR
-            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_VECTOR)
-            return unsafe_wrap(ptr, (nrows,))
-        elseif type == API.LMP_TYPE_ARRAY
-            nrows = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_ROWS)
-            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
-            return unsafe_wrap(ptr, (nrows, ncols))
-        end
-    else style = API.LMP_STYLE_ATOM
-        nlocal = extract_global(lmp, "nlocal")
-        if type == API.LMP_TYPE_VECTOR
-            return unsafe_wrap(ptr, (nlocal,))
-        elseif type == API.LMP_TYPE_ARRAY
-            ncols = unsafe_extract_compute(lmp, name, style, API.LMP_SIZE_COLS)
-            return unsafe_wrap(ptr, (nlocal, ncols))
-        end
+Extract per-atom data from the lammps instance.
+
+| valid values for `lmp_type`: | resulting return type: |
+| :--------------------------- | :--------------------- |
+| `LAMMPS_INT`                 | `Vector{Int32}`        |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
+| `LAMMPS_INT64`               | `Vector{Int64}`        |
+| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
+
+the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
+As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
+if you wish to modify the internal state of the LAMMPS instance.
+
+!!! info
+    The returned data may become invalid if a re-neighboring operation
+    is triggered at any point after calling this method. If this has happened,
+    trying to read from this data will likely cause julia to crash.
+    To prevent this, set `copy=true`.
+
+A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
+"""
+function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
+    void_ptr = API.lammps_extract_atom(lmp, name)
+    void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
+
+    expect = extract_atom_datatype(lmp, name)
+    receive = get_enum(lmp_type)
+    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
+
+    ptr = _reinterpret(lmp_type, void_ptr)
+
+    if name == "mass"
+        length = extract_global(lmp, "ntypes", LAMMPS_INT)[]
+        ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
+        return _extract(ptr, length; copy=copy)
     end
-    return nothing
+
+    length = extract_setting(lmp, "nlocal")
+
+    if _is_2D_datatype(lmp_type)
+        # only Quaternions have 4 entries
+        # length is a Int32 and lammps_wrap expects a NTuple, so it's
+        # neccecary to use Int32 for count as well
+        count = name == "quat" ? Int32(4) : Int32(3)
+        return _extract(ptr, (count, length); copy=copy)
+    end
+
+    return _extract(ptr, length; copy=copy)
+end
+
+function extract_atom_datatype(lmp::LMP, name)
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(lmp, name))
 end
 
 """
-    extract_variable(lmp::LMP, name, group)
+    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
+
+Extract data provided by a compute command identified by the compute-ID.
+Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
+Since computes may provide multiple kinds of data, it is required to set style and type flags representing what specific data is desired.
+
+| valid values for `style`: |
+| :------------------------ |
+| `STYLE_GLOBAL`            |
+| `STYLE_ATOM`              |
+| `STYLE_LOCAL`             |
+
+| valid values for `lmp_type`: | resulting return type: |
+| :--------------------------- | :--------------------- |
+| `TYPE_SCALAR`                | `Vector{Float64}`      |
+| `TYPE_VECTOR`                | `Vector{Float64}`      |
+| `TYPE_ARRAY`                 | `Matrix{Float64}`      |
+| `SIZE_VECTOR`                | `Vector{Int32}`        |
+| `SIZE_COLS`                  | `Vector{Int32}`        |
+| `SIZE_ROWS`                  | `Vector{Int32}`        |
+
+Scalar values get returned as a vector with a single element. This way it's possible to
+modify the internal state of the LAMMPS instance even if the data is scalar.
+
+!!! info
+    The returned data may become invalid as soon as another LAMMPS command has been issued at any point after calling this method.
+    If this has happened, trying to read from this data will likely cause julia to crash.
+    To prevent this, set `copy=true`.
+
+# Examples
+
+```julia
+    LMP(["-screen", "none"]) do lmp
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
+        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+    end
+```
+"""
+function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
+    API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
+
+    void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
+    void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
+
+    # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
+    if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
+        ptr = _reinterpret(LAMMPS_INT, void_ptr)
+        return _extract(ptr, 1; copy=copy)
+    end
+
+    if lmp_type == TYPE_SCALAR
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _extract(ptr, 1; copy=copy)
+    end
+
+    if lmp_type == TYPE_VECTOR
+        ndata = (style == STYLE_ATOM) ?
+            extract_setting(lmp, "nlocal") :
+            extract_compute(lmp, name, style, SIZE_VECTOR)[]
+
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return  _extract(ptr, ndata; copy=copy)
+    end
+
+    ndata = (style == STYLE_ATOM) ?
+        extract_setting(lmp, "nlocal") :
+        extract_compute(lmp, name, style, SIZE_ROWS)[]
+
+    count = extract_compute(lmp, name, style, SIZE_COLS)[]
+    ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+
+    return _extract(ptr, (count, ndata); copy=copy)
+end
+
+"""
+    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
 Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
 For other variable styles, their string value is returned.
+
+| valid values for `lmp_variable`: | return type       |
+| :------------------------------- | :---------------  |
+| `VAR_ATOM`                       | `Vector{Float64}` |
+| `VAR_EQUAL`                      | `Float64`         |
+| `VAR_STRING`                     | `String`          |
+| `VAR_VECTOR`                     | `Vector{Float64}` |
+
+the kwarg `copy` determies wheter a copy of the underlying data is made.
+`copy` is only aplicable for `VAR_VECTOR` and `VAR_ATOM`. For all other variable types, a copy will be made regardless.
+The underlying LAMMPS API call for `VAR_ATOM` internally allways creates a copy of the data. As the memory for this gets allocated by LAMMPS instead of julia,
+it needs to be dereferenced using `LAMMPS.API.lammps_free` instead of through the garbage collector. 
+If `copy=false` this gets acieved by registering `LAMMPS.API.lammps_free` as a finalizer for the returned data.
+Alternatively, setting `copy=true` will instead create a new copy of the data. The lammps allocated block of memory will then be freed immediately.
+
+the kwarg `group` determines for which atoms the variable will be extracted. It's only aplicable for
+`VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
+will be zeroed out. By default, all atoms will be extracted.
 """
-function extract_variable(lmp::LMP, name::String, group=nothing)
-    var = API.lammps_extract_variable_datatype(lmp, name)
-    if var == -1
-        throw(KeyError(name))
-    end
-    if group === nothing
+function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
+    lmp_variable != VAR_ATOM && !isnothing(group) && throw(ArgumentError("the group parameter is only supported for per atom variables!"))
+
+    if isnothing(group)
         group = C_NULL
     end
 
-    if var == API.LMP_VAR_EQUAL
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        val = Base.unsafe_load(Base.unsafe_convert(Ptr{Float64}, ptr))
-        API.lammps_free(ptr)
-        return val
-    elseif var == API.LMP_VAR_ATOM
-        nlocal = extract_global(lmp, "nlocal")
-        ptr = API.lammps_extract_variable(lmp, name, group)
-        if ptr == C_NULL
-            error("Group $group for variable $name with style atom not available.")
+    void_ptr = API.lammps_extract_variable(lmp, name, group)
+    void_ptr == C_NULL && throw(KeyError("Unknown variable $name"))
+
+    expect = extract_variable_datatype(lmp, name)
+    receive = get_enum(lmp_variable)
+    if expect != receive
+        # the documentation instructs us to free the pointers for these styles specifically
+        if expect in (API.LMP_VAR_ATOM, API.LMP_VAR_EQUAL)
+            API.lammps_free(void_ptr)
         end
-        # LAMMPS uses malloc, so and we are taking ownership of this buffer
-        val = copy(Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), nlocal; own=false))
-        API.lammps_free(ptr)
-        return val
-    elseif var == API.LMP_VAR_VECTOR
-        # TODO Fix lammps docs `GET_VECTOR_SIZE`
-        ptr = API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR")
-        if ptr == C_NULL
-            error("$name is a vector style variable but has no size.")
-        end
-        sz = Base.unsafe_load(Base.unsafe_convert(Ptr{Cint}, ptr))
-        API.lammps_free(ptr)
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        return Base.unsafe_wrap(Array, Base.unsafe_convert(Ptr{Float64}, ptr), sz, own=false)
-    elseif var == API.LMP_VAR_STRING
-        ptr = API.lammps_extract_variable(lmp, name, C_NULL)
-        return Base.unsafe_string(Base.unsafe_convert(Ptr{Cchar}, ptr))
-    else
-        error("Unkown variable style $var")
+
+        error("TypeMismatch: Expected $expect got $receive instead!")
     end
+
+    if lmp_variable == VAR_EQUAL
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        result = unsafe_load(ptr)
+        API.lammps_free(ptr)
+        return result
+    end
+
+    if lmp_variable == VAR_VECTOR
+        # Calling lammps_extract_variable directly through the API instead of the higher level wrapper, as
+        # "LMP_SIZE_VECTOR" is the only group name that won't be ignored for Vector Style Variables.
+        # This isn't exposed to the high level API as it causes type instability for something that probably won't
+        # ever be used outside of this implementation
+        ndata_ptr = _reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
+        ndata = unsafe_load(ndata_ptr)
+        API.lammps_free(ndata_ptr)
+
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _extract(ptr, ndata; copy=copy)
+    end
+
+    if lmp_variable == VAR_ATOM
+        ndata = extract_setting(lmp, "nlocal")
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        # lammps expects us to take ownership of the data
+        return _extract(ptr, ndata; copy=copy, own=true)
+    end
+
+    ptr = _reinterpret(LAMMPS_STRING, void_ptr)
+    return _string(ptr)
 end
+
+function extract_variable_datatype(lmp::LMP, name)
+    return API._LMP_VAR_CONST(API.lammps_extract_variable_datatype(lmp, name))
+end
+
 
 @deprecate gather_atoms(lmp::LMP, name, T, count) gather(lmp, name, T)
 
