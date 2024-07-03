@@ -225,12 +225,19 @@ end
 """
 function command(lmp::LMP, cmd::Union{String, Array{String}})
     if cmd isa String
-        API.lammps_commands_string(lmp, cmd)
+        task = Threads.@spawn LAMMPS.API.lammps_commands_string(lmp, cmd)
     else
-        API.lammps_commands_list(lmp, length(cmd), cmd)
+        task = Threads.@spawn LAMMPS.API.lammps_commands_list(lmp, length(cmd), cmd)
     end
 
-    check(lmp)
+    try
+        wait(task)
+        check(lmp)
+    catch e
+        API.lammps_force_timeout(lmp)
+        check(lmp)
+        throw(e)
+    end
 end
 
 """
