@@ -224,13 +224,13 @@ end
 ```
 """
 function command(lmp::LMP, cmd::Union{String, Array{String}})
-    if cmd isa String
-        task = Threads.@spawn LAMMPS.API.lammps_commands_string(lmp, cmd)
-    else
-        task = Threads.@spawn LAMMPS.API.lammps_commands_list(lmp, length(cmd), cmd)
-    end
-
     try
+        if cmd isa String
+            task = @async API.lammps_commands_string(lmp, cmd)
+        else
+            task = @async API.lammps_commands_list(lmp, length(cmd), cmd)
+        end
+
         wait(task)
         check(lmp)
     catch e
