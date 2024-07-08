@@ -616,10 +616,6 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 
 The returned Array is decoupled from the internal state of the LAMMPS instance.
 
-!!! warning "Type Verification"
-    Due to how the underlying C-API works, it's not possible to verify the element data-type of fix or compute style data.
-    Supplying the wrong data-type will not throw an error but will result in nonsensical output
-
 !!! warning "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
@@ -658,10 +654,6 @@ By default (when `ids=nothing`), this method scatters data to all atoms in conse
 The optional parameter `ids` determines to which subset of atoms the data will be scattered.
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
-
-!!! warning "Type Verification"
-    Due to how the underlying C-API works, it's not possible to verify the element data-type of fix or compute style data.
-    Supplying the wrong data-type will not throw an error but will result in nonsensical date being supplied to the LAMMPS instance.
 
 !!! warning "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
@@ -732,7 +724,7 @@ end
 
 function _get_T(lmp::LMP, name::String)
     if startswith(name, r"[f,c]_")
-        return missing # As far as I know, it's not possible to determine the datatype of computes or fixes at runtime
+        return Float64
     end
 
     type = API.lammps_extract_atom_datatype(lmp, name)
