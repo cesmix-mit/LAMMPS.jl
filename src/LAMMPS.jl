@@ -724,7 +724,7 @@ end
 
 function _get_T(lmp::LMP, name::String)
     if startswith(name, r"[f,c]_")
-        return Float64
+        return Float64 # computes and fixes are allways doubles
     end
 
     type = API.lammps_extract_atom_datatype(lmp, name)
