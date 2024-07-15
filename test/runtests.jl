@@ -188,8 +188,41 @@ end
 
         @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
 
-    # verify that no errors were missed
-    @test LAMMPS.API.lammps_has_error(lmp) == 0
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
+    end
+end
+
+@testset "Gather bonds/angles/dihedrals/impropers" begin
+    LMP(["-screen", "none"]) do lmp
+        file = joinpath(@__DIR__, "test_files/bonds_angles_dihedrals_impropers.data")
+
+        command(lmp,  """
+            atom_style molecular
+            read_data $file
+            """)
+
+        @test gather_bonds(lmp) == transpose([
+            1 1 2
+            1 2 3
+            1 3 4
+            1 4 1
+        ])
+        @test gather_angles(lmp) == transpose([
+            1 1 2 3
+            1 2 3 4
+        ])
+        @test gather_angles(lmp) == transpose([
+            1 1 2 3
+            1 2 3 4
+        ])
+        @test gather_dihedrals(lmp) == transpose([
+            1 1 2 3 4
+        ])
+        @test gather_impropers(lmp) == transpose([
+            1 4 3 2 1
+        ])
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 

@@ -3,8 +3,8 @@ import MPI
 include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
-       extract_setting, gather, scatter!, group_to_atom_ids, get_category_ids,
-       extract_variable,
+       extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
+       scatter!, group_to_atom_ids, get_category_ids, extract_variable,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -738,6 +738,79 @@ function _get_T(lmp::LMP, name::String)
         error("Unkown per atom property $name")
     end
 
+end
+
+"""
+    gather_bonds(lmp::LMP)
+
+Gather the list of all bonds into a 3 x nbonds Matrix:
+```
+row1 -> bond type
+row2 -> atom 1
+row3 -> atom 2
+```
+"""
+function gather_bonds(lmp::LMP)
+    ndata = extract_global(lmp, "nbonds", LAMMPS_INT64)[]
+    data = Matrix{Int32}(undef, 3, ndata)
+    API.lammps_gather_bonds(lmp, data)
+    return data
+end
+
+"""
+    gather_angles(lmp::LMP)
+
+Gather the list of all angles into a 4 x nangles Matrix:
+```
+row1 -> angle type
+row2 -> atom 1
+row3 -> atom 2
+row4 -> atom 3
+```
+"""
+function gather_angles(lmp::LMP)
+    ndata = extract_global(lmp, "nangles", LAMMPS_INT64)[]
+    data = Matrix{Int32}(undef, 4, ndata)
+    API.lammps_gather_angles(lmp, data)
+    return data
+end
+
+"""
+    gather_dihedrals(lmp::LMP)
+
+Gather the list of all dihedrals into a 5 x ndihedrals Matrix:
+```
+row1 -> dihedral type
+row2 -> atom 1
+row3 -> atom 2
+row4 -> atom 3
+row5 -> atom 4
+```
+"""
+function gather_dihedrals(lmp::LMP)
+    ndata = extract_global(lmp, "ndihedrals", LAMMPS_INT64)[]
+    data = Matrix{Int32}(undef, 5, ndata)
+    API.lammps_gather_dihedrals(lmp, data)
+    return data
+end
+
+"""
+    gather_impropers(lmp::LMP)
+
+Gather the list of all impropers into a 5 x nimpropers Matrix:
+```
+row1 -> improper type
+row2 -> atom 1
+row3 -> atom 2
+row4 -> atom 3
+row5 -> atom 4
+```
+"""
+function gather_impropers(lmp::LMP)
+    ndata = extract_global(lmp, "nimpropers", LAMMPS_INT64)[]
+    data = Matrix{Int32}(undef, 5, ndata)
+    API.lammps_gather_impropers(lmp, data)
+    return data
 end
 
 """
