@@ -293,4 +293,58 @@ end
     end
 end
 
+@testset "Create Atoms" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 2 0 2 0 2
+            create_box 1 cell
+            lattice sc 1
+        """)
+        x = rand(3, 100)
+        id = Int32.(collect(1:100))
+        types = ones(Int32, 100)
+        image = ones(Int32, 100)
+        v = rand(3, 100)
+
+
+        create_atoms(lmp, x, id, types, v=v, image=image, bexpand=true)
+        # Normally, you would have to sort by id, but we haven't done anything, so lammps
+        # will still have the same order
+        @test all(x .== extract_atom(
+            lmp, "x", LAMMPS_DOUBLE_2D
+        ))
+        @test all(v .== extract_atom(
+            lmp, "v", LAMMPS_DOUBLE_2D
+        ))
+
+        command(lmp, """
+            clear
+            atom_modify map yes
+            region cell block 0 2 0 2 0 2
+            create_box 1 cell
+            lattice sc 1
+        """)
+        create_atoms(lmp, x, id, types, bexpand=true)
+        @test all(zeros(3,100) .== extract_atom(
+            lmp, "v", LAMMPS_DOUBLE_2D
+        ))
+
+        @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types, v=v, image=image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types, v=v, image=image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types[1:99], v=v, image=image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v[1:2,:], image=image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v, image=image[1:99], bexpand=true) 
+
+        warnMsg = " does not match type expected by LAMMPS. "*
+                  "This causes allocation!!! "*
+                  "Change typeof "
+        @test_warn "Typeof x"*warnMsg*"x to Matrix{Float64}." create_atoms(lmp, Float32.(x), id, types, v=v, image=image, bexpand=true)
+        @test_warn "Typeof id"*warnMsg*"id to Vector{Int32}." create_atoms(lmp, x, Int64.(id), types, v=v, image=image, bexpand=true)
+        @test_warn "Typeof types"*warnMsg*"types to Vector{Int32}." create_atoms(lmp, x, id, Int64.(types), v=v, image=image, bexpand=true)
+        @test_warn "Typeof v"*warnMsg*"v to Matrix{Float64}." create_atoms(lmp, x, id, types, v=Float32.(v), image=image, bexpand=true)
+        @test_warn "Typeof image"*warnMsg*"image to Vector{Int32}." create_atoms(lmp, x, id, types, v=v, image=Int64.(image), bexpand=true)
+    end
+end
+
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))

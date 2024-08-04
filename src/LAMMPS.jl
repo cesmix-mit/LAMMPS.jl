@@ -2,7 +2,7 @@ module LAMMPS
 import MPI
 include("api.jl")
 
-export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
+export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
        scatter!, group_to_atom_ids, get_category_ids, extract_variable,
 
@@ -74,6 +74,33 @@ const _LMP_STYLE_CONST = API._LMP_STYLE_CONST
 const STYLE_GLOBAL = API.LMP_STYLE_GLOBAL
 const STYLE_ATOM = API.LMP_STYLE_ATOM
 const STYLE_LOCAL = API.LMP_STYLE_LOCAL
+
+"""
+     to_julia_type(T::API._LMP_DATATYPE_CONST)
+
+Get the julia type associated with an API._LMP_DATATYPE_CONST
+
+| valid values for `T`:     | resulting return value:   |
+| :------------------------ | :------------------------ |
+| `API.LAMMPS_NONE          | Nothing                   |
+| `API.LAMMPS_INT`          | `Vector{Int32}`           |
+| `API.LAMMPS_INT_2D`       | `Matrix{Int32}`           |
+| `API.LAMMPS_DOUBLE`       | `Vector{Float64}`         |
+| `API.LAMMPS_DOUBLE_2D`    | `Matrix{Float64}`         |
+| `API.LAMMPS_INT64`        | `Vector{Int64}`           |
+| `API.LAMMPS_INT64_2D`     | `Matrix{Int64}`           |
+| `API.LAMMPS_STRING`       | `String`                  |
+"""
+function to_julia_type(T::API._LMP_DATATYPE_CONST)
+    T == API.LAMMPS_NONE && return Nothing
+    T == API.LAMMPS_INT && return Vector{Int32}
+    T == API.LAMMPS_INT_2D && return Matrix{Int32}
+    T == API.LAMMPS_DOUBLE && return Vector{Float64}
+    T == API.LAMMPS_DOUBLE_2D && return Matrix{Float64}
+    T == API.LAMMPS_INT64 && return Vector{Int64}
+    T == API.LAMMPS_INT64_2D && return Matrix{Int64}
+    T == API.LAMMPS_String && return String
+end
 
 """
     locate()
@@ -234,6 +261,89 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
 end
 
 """
+    create_atoms(
+        lmp::LMP, x::Matrix{R1}, id::Vector{I1}, types::Vector{I2};
+        v::Union{Nothing,Matrix{R2}}=nothing,
+        image::Union{Nothing,Vector{I3}}=nothing,
+        bexpand::Bool=false
+    ) where {R1 <: Real, R2 <: Real, I1 <: Integer, I2 <: Integer, I3 <: Integer}
+
+Create atoms for a LAMMPS instance. x contains the atom positions and should be a 3 by n
+Matrix{Float64}, where n is the number of atoms. v contains the associated velocities and 
+should be the same size and type. id, types, and image should all be Vector{Int32} with a 
+length of n.
+"""
+function create_atoms(
+    lmp::LMP, x::Matrix{R1}, id::Vector{I1}, types::Vector{I2};
+    v::Union{Nothing,Matrix{R2}}=nothing,
+    image::Union{Nothing,Vector{I3}}=nothing,
+    bexpand::Bool=false
+) where {R1 <: Real, R2 <: Real, I1 <: Integer, I2 <: Integer, I3 <: Integer}
+    numAtoms = size(x, 2)
+    if size(x, 1) != 3
+        throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
+    end
+    if v != nothing && size(x) != size(v)
+        throw(ArgumentError("x and v must be the same size"))
+    end
+    if id != nothing && numAtoms != length(id)
+        throw(ArgumentError("id must have the same length as the number of atoms"))
+    end
+    if types != nothing && numAtoms != length(types)
+        throw(ArgumentError("types must have the same length as the number of atoms"))
+    end
+    if image != nothing && numAtoms != length(image)
+        throw(ArgumentError("image must have the same length as the number of atoms"))
+    end
+
+    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "x"))
+    if jtype != typeof(x)
+        x = jtype.parameters[1].(x)
+        @warn "Typeof x does not match type expected by LAMMPS. "*
+              "This causes allocation!!! "*
+              "Change typeof x to $(jtype)."
+    end
+
+    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "id"))
+    if id != nothing && jtype != typeof(id)
+        id = jtype.parameters[1].(id)
+        @warn "Typeof id does not match type expected by LAMMPS. "*
+              "This causes allocation!!! "*
+              "Change typeof id to $(jtype)."
+    end
+
+    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "type"))
+    if types != nothing && jtype != typeof(types)
+        types = jtype.parameters[1].(id)
+        @warn "Typeof types does not match type expected by LAMMPS. "*
+              "This causes allocation!!! "*
+              "Change typeof types to $(jtype)."
+    end
+
+    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "v"))
+    if v == nothing
+        v = Ptr{Float64}(C_NULL)
+    elseif jtype != typeof(v)
+        v = jtype.parameters[1].(v)
+        @warn "Typeof v does not match type expected by LAMMPS. "*
+              "This causes allocation!!! "*
+              "Change typeof v to $(jtype)."
+    end
+
+    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "image"))
+    if image == nothing
+        image = Ptr{Int32}(C_NULL)
+    elseif jtype != typeof(image)
+        image = jtype.parameters[1].(image)
+        @warn "Typeof image does not match type expected by LAMMPS. "*
+              "This causes allocation!!! "*
+              "Change typeof image to $(jtype)."
+    end
+
+    API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
+end
+
+"""
     get_natoms(lmp::LMP)::Int64
 
 Get the total number of atoms in the LAMMPS instance.
@@ -339,7 +449,7 @@ Extract a global property from a LAMMPS instance.
 | `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
 | `LAMMPS_INT64`               | `Vector{Int64}`           |
 | `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
-| `LAMMPS_STRING`              | `String` (allways a copy) |
+| `LAMMPS_STRING`              | `String` (always a copy) |
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
