@@ -33,8 +33,12 @@ export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, ex
        # _LMP_STYLE_CONST
        STYLE_GLOBAL,
        STYLE_ATOM,
-       STYLE_LOCAL
+       STYLE_LOCAL,
 
+       # LAMMPS to Julia types
+       BIGINT,
+       TAGINT,
+       IMAGEINT
 
 using Preferences
 
