@@ -75,32 +75,9 @@ const STYLE_GLOBAL = API.LMP_STYLE_GLOBAL
 const STYLE_ATOM = API.LMP_STYLE_ATOM
 const STYLE_LOCAL = API.LMP_STYLE_LOCAL
 
-"""
-     to_julia_type(T::API._LMP_DATATYPE_CONST)
-
-Get the julia type associated with an API._LMP_DATATYPE_CONST
-
-| valid values for `T`:     | resulting return value:   |
-| :------------------------ | :------------------------ |
-| `API.LAMMPS_NONE          | Nothing                   |
-| `API.LAMMPS_INT`          | `Vector{Int32}`           |
-| `API.LAMMPS_INT_2D`       | `Matrix{Int32}`           |
-| `API.LAMMPS_DOUBLE`       | `Vector{Float64}`         |
-| `API.LAMMPS_DOUBLE_2D`    | `Matrix{Float64}`         |
-| `API.LAMMPS_INT64`        | `Vector{Int64}`           |
-| `API.LAMMPS_INT64_2D`     | `Matrix{Int64}`           |
-| `API.LAMMPS_STRING`       | `String`                  |
-"""
-function to_julia_type(T::API._LMP_DATATYPE_CONST)
-    T == API.LAMMPS_NONE && return Nothing
-    T == API.LAMMPS_INT && return Vector{Int32}
-    T == API.LAMMPS_INT_2D && return Matrix{Int32}
-    T == API.LAMMPS_DOUBLE && return Vector{Float64}
-    T == API.LAMMPS_DOUBLE_2D && return Matrix{Float64}
-    T == API.LAMMPS_INT64 && return Vector{Int64}
-    T == API.LAMMPS_INT64_2D && return Matrix{Int64}
-    T == API.LAMMPS_String && return String
-end
+const BIGINT = API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64
+const TAGINT = API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64
+const IMAGEINT = API.lammps_extract_setting(C_NULL, "imageint") == 4 ? Int32 : Int64
 
 """
     locate()
@@ -262,26 +239,26 @@ end
 
 """
     create_atoms(
-        lmp::LMP, x::Matrix{R1}, id::Vector{I1}, types::Vector{I2};
-        v::Union{Nothing,Matrix{R2}}=nothing,
-        image::Union{Nothing,Vector{I3}}=nothing,
+        lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+        v::Union{Ptr{Float64},Matrix{Float64}}=Ptr{Float64}(C_NULL),
+        image::Union{Ptr{IMAGEINT},Vector{IMAGEINT}}=Ptr{IMAGEINT}(C_NULL),
         bexpand::Bool=false
-    ) where {R1 <: Real, R2 <: Real, I1 <: Integer, I2 <: Integer, I3 <: Integer}
+    )
 
 Create atoms for a LAMMPS instance. 
 x contains the atom positions and should be a 3 by Matrix{Float64}, where n is the number of atoms. 
 id contains the id of each atom and should all be Vector{Int32} with length n.
 types contains the atomic type (LAMMPS number) of each atom and should all be a Vector{Int32} with length n.
 v contains the associated velocities and should be a 3 by Matrix{Float64}.
-image contains the image flags for each atom and should be Vector{Int32} with length n.
+image contains the image flags for each atom and should be Vector{IMAGEINT} with length n.
 bexpand is a Bool that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
 function create_atoms(
-    lmp::LMP, x::Matrix{R1}, id::Vector{I1}, types::Vector{I2};
-    v::Union{Nothing,Matrix{R2}}=nothing,
-    image::Union{Nothing,Vector{I3}}=nothing,
+    lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+    v::Union{Ptr{Float64},Matrix{Float64}}=Ptr{Float64}(C_NULL),
+    image::Union{Ptr{IMAGEINT},Vector{IMAGEINT}}=Ptr{IMAGEINT}(C_NULL),
     bexpand::Bool=false
-) where {R1 <: Real, R2 <: Real, I1 <: Integer, I2 <: Integer, I3 <: Integer}
+)
     numAtoms = size(x, 2)
     if size(x, 1) != 3
         throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
@@ -292,55 +269,11 @@ function create_atoms(
     if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
     end
-    if v != nothing && size(x) != size(v)
+    if typeof(v) != Ptr{Float64} && size(x) != size(v)
         throw(ArgumentError("x and v must be the same size"))
     end
-    if image != nothing && numAtoms != length(image)
+    if typeof(image) != Ptr{IMAGEINT} && numAtoms != length(image)
         throw(ArgumentError("image must have the same length as the number of atoms"))
-    end
-
-    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "x"))
-    if jtype != typeof(x)
-        throw(ArgumentError(
-            "Typeof x does not match type expected by LAMMPS. "*
-            "Change typeof x to $(jtype)."
-        ))
-    end
-
-    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "id"))
-    if id != nothing && jtype != typeof(id)
-        throw(ArgumentError(
-            "Typeof id does not match type expected by LAMMPS. "*
-            "Change typeof id to $(jtype)."
-        ))
-    end
-
-    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "type"))
-    if types != nothing && jtype != typeof(types)
-        throw(ArgumentError(
-            "Typeof types does not match type expected by LAMMPS. "*
-            "Change typeof types to $(jtype)."
-        ))
-    end
-
-    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "v"))
-    if v == nothing
-        v = Ptr{eltype(jtype)}(C_NULL)
-    elseif jtype != typeof(v)
-        throw(ArgumentError(
-            "Typeof v does not match type expected by LAMMPS. "*
-            "Change typeof v to $(jtype)."
-        ))
-    end
-
-    jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "image"))
-    if image == nothing
-        image = Ptr{eltype(jtype)}(C_NULL)
-    elseif jtype != typeof(image)
-        throw(ArgumentError(
-            "Typeof image does not match type expected by LAMMPS. "*
-            "Change typeof image to $(jtype)."
-        ))
     end
 
     API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)

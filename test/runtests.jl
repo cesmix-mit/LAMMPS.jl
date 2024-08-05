@@ -336,14 +336,6 @@ end
         @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v[1:2,:], image=image, bexpand=true) 
         @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v, image=image[1:99], bexpand=true) 
 
-        warnMsg = " does not match type expected by LAMMPS. "*
-                  "This causes allocation!!! "*
-                  "Change typeof "
-        @test_throws ArgumentError create_atoms(lmp, Float32.(x), id, types, v=v, image=image, bexpand=true)
-        @test_throws ArgumentError create_atoms(lmp, x, Int64.(id), types, v=v, image=image, bexpand=true)
-        @test_throws ArgumentError create_atoms(lmp, x, id, Int64.(types), v=v, image=image, bexpand=true)
-        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=Float32.(v), image=image, bexpand=true)
-        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v, image=Int64.(image), bexpand=true)
     end
 end
 
