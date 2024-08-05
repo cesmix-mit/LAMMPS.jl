@@ -268,10 +268,13 @@ end
         bexpand::Bool=false
     ) where {R1 <: Real, R2 <: Real, I1 <: Integer, I2 <: Integer, I3 <: Integer}
 
-Create atoms for a LAMMPS instance. x contains the atom positions and should be a 3 by n
-Matrix{Float64}, where n is the number of atoms. v contains the associated velocities and 
-should be the same size and type. id, types, and image should all be Vector{Int32} with a 
-length of n.
+Create atoms for a LAMMPS instance. 
+x contains the atom positions and should be a 3 by Matrix{Float64}, where n is the number of atoms. 
+id contains the id of each atom and should all be Vector{Int32} with length n.
+types contains the atomic type (LAMMPS number) of each atom and should all be a Vector{Int32} with length n.
+v contains the associated velocities and should be a 3 by Matrix{Float64}.
+image contains the image flags for each atom and should be Vector{Int32} with length n.
+bexpand is a Bool that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
 function create_atoms(
     lmp::LMP, x::Matrix{R1}, id::Vector{I1}, types::Vector{I2};
@@ -283,14 +286,14 @@ function create_atoms(
     if size(x, 1) != 3
         throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
     end
-    if v != nothing && size(x) != size(v)
-        throw(ArgumentError("x and v must be the same size"))
-    end
-    if id != nothing && numAtoms != length(id)
+    if numAtoms != length(id)
         throw(ArgumentError("id must have the same length as the number of atoms"))
     end
-    if types != nothing && numAtoms != length(types)
+    if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
+    end
+    if v != nothing && size(x) != size(v)
+        throw(ArgumentError("x and v must be the same size"))
     end
     if image != nothing && numAtoms != length(image)
         throw(ArgumentError("image must have the same length as the number of atoms"))
@@ -298,46 +301,46 @@ function create_atoms(
 
     jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "x"))
     if jtype != typeof(x)
-        x = jtype.parameters[1].(x)
-        @warn "Typeof x does not match type expected by LAMMPS. "*
-              "This causes allocation!!! "*
-              "Change typeof x to $(jtype)."
+        throw(ArgumentError(
+            "Typeof x does not match type expected by LAMMPS. "*
+            "Change typeof x to $(jtype)."
+        ))
     end
 
     jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "id"))
     if id != nothing && jtype != typeof(id)
-        id = jtype.parameters[1].(id)
-        @warn "Typeof id does not match type expected by LAMMPS. "*
-              "This causes allocation!!! "*
-              "Change typeof id to $(jtype)."
+        throw(ArgumentError(
+            "Typeof id does not match type expected by LAMMPS. "*
+            "Change typeof id to $(jtype)."
+        ))
     end
 
     jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "type"))
     if types != nothing && jtype != typeof(types)
-        types = jtype.parameters[1].(id)
-        @warn "Typeof types does not match type expected by LAMMPS. "*
-              "This causes allocation!!! "*
-              "Change typeof types to $(jtype)."
+        throw(ArgumentError(
+            "Typeof types does not match type expected by LAMMPS. "*
+            "Change typeof types to $(jtype)."
+        ))
     end
 
     jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "v"))
     if v == nothing
-        v = Ptr{Float64}(C_NULL)
+        v = Ptr{eltype(jtype)}(C_NULL)
     elseif jtype != typeof(v)
-        v = jtype.parameters[1].(v)
-        @warn "Typeof v does not match type expected by LAMMPS. "*
-              "This causes allocation!!! "*
-              "Change typeof v to $(jtype)."
+        throw(ArgumentError(
+            "Typeof v does not match type expected by LAMMPS. "*
+            "Change typeof v to $(jtype)."
+        ))
     end
 
     jtype = to_julia_type(LAMMPS.extract_atom_datatype(lmp, "image"))
     if image == nothing
-        image = Ptr{Int32}(C_NULL)
+        image = Ptr{eltype(jtype)}(C_NULL)
     elseif jtype != typeof(image)
-        image = jtype.parameters[1].(image)
-        @warn "Typeof image does not match type expected by LAMMPS. "*
-              "This causes allocation!!! "*
-              "Change typeof image to $(jtype)."
+        throw(ArgumentError(
+            "Typeof image does not match type expected by LAMMPS. "*
+            "Change typeof image to $(jtype)."
+        ))
     end
 
     API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)

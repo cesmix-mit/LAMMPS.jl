@@ -339,11 +339,11 @@ end
         warnMsg = " does not match type expected by LAMMPS. "*
                   "This causes allocation!!! "*
                   "Change typeof "
-        @test_warn "Typeof x"*warnMsg*"x to Matrix{Float64}." create_atoms(lmp, Float32.(x), id, types, v=v, image=image, bexpand=true)
-        @test_warn "Typeof id"*warnMsg*"id to Vector{Int32}." create_atoms(lmp, x, Int64.(id), types, v=v, image=image, bexpand=true)
-        @test_warn "Typeof types"*warnMsg*"types to Vector{Int32}." create_atoms(lmp, x, id, Int64.(types), v=v, image=image, bexpand=true)
-        @test_warn "Typeof v"*warnMsg*"v to Matrix{Float64}." create_atoms(lmp, x, id, types, v=Float32.(v), image=image, bexpand=true)
-        @test_warn "Typeof image"*warnMsg*"image to Vector{Int32}." create_atoms(lmp, x, id, types, v=v, image=Int64.(image), bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, Float32.(x), id, types, v=v, image=image, bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, x, Int64.(id), types, v=v, image=image, bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, x, id, Int64.(types), v=v, image=image, bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=Float32.(v), image=image, bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v, image=Int64.(image), bexpand=true)
     end
 end
 
