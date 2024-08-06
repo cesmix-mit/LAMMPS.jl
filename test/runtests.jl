@@ -13,7 +13,16 @@ LMP(["-screen", "none"]) do lmp
     command(lmp, "clear")
 
     @test_throws LAMMPSError command(lmp, "nonsense")
+
+    LAMMPS.close!(lmp)
+
+    expected_error = ErrorException("The LMP object doesn't point to a valid LAMMPS instance! "
+        * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
+
+    @test_throws expected_error command(lmp, "")
 end
+
+@test_throws LAMMPSError LMP(["-nonesense"])
 
 @testset "Extract Setting/Global" begin
     LMP(["-screen", "none"]) do lmp
@@ -291,30 +300,6 @@ end
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
-end
-
-@testset "Invalid LAMMPS instance" begin
-    LAMMPS_NULL = LMP(["-screen", "none"]); LAMMPS.close!(LAMMPS_NULL)
-
-    expected_error = ArgumentError("The LMP object doesn't point to a valid LAMMPS instance! "
-        * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
-
-    @test_throws expected_error LAMMPS.version(LAMMPS_NULL)
-    @test_throws expected_error command(LAMMPS_NULL, "")
-    @test_throws expected_error get_natoms(LAMMPS_NULL)
-    @test_throws expected_error extract_setting(LAMMPS_NULL, "")
-    @test_throws expected_error extract_global(LAMMPS_NULL, "", LAMMPS_NONE)
-    @test_throws expected_error extract_atom(LAMMPS_NULL, "", LAMMPS_NONE)
-    @test_throws expected_error extract_compute(LAMMPS_NULL, "", STYLE_ATOM, TYPE_VECTOR)
-    @test_throws expected_error extract_variable(LAMMPS_NULL, "", VAR_ATOM)
-    @test_throws expected_error gather(LAMMPS_NULL, "", Int32)
-    @test_throws expected_error scatter!(LAMMPS_NULL, "", Int32[])
-    @test_throws expected_error gather_bonds(LAMMPS_NULL)
-    @test_throws expected_error gather_angles(LAMMPS_NULL)
-    @test_throws expected_error gather_dihedrals(LAMMPS_NULL)
-    @test_throws expected_error gather_impropers(LAMMPS_NULL)
-    @test_throws expected_error group_to_atom_ids(LAMMPS_NULL, "")
-    @test_throws expected_error get_category_ids(LAMMPS_NULL, "")
 end
 
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))

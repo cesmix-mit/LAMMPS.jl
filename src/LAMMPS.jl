@@ -139,14 +139,18 @@ mutable struct LMP
                 handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
             end
         end
-
+        check(handle)
         this = new(handle)
-        check(this)
         finalizer(close!, this)
         return this
     end
 end
-Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
+
+function Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP)    
+    lmp.handle == C_NULL && error("The LMP object doesn't point to a valid LAMMPS instance! "
+            * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
+    return lmp.handle
+end
 
 """
     close!(lmp::LMP)
@@ -172,7 +176,6 @@ function LMP(f::Function, args=String[], comm=nothing)
 end
 
 function version(lmp::LMP)
-    check(lmp)
     API.lammps_version(lmp)
 end
 
@@ -180,7 +183,7 @@ struct LAMMPSError <: Exception
     msg::String
 end
 
-function LAMMPSError(lmp::LMP)
+function LAMMPSError(lmp::Union{LMP, Ptr{Cvoid}})
     buf = zeros(UInt8, 100)
     API.lammps_get_last_error_message(lmp, buf, length(buf))
     msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
@@ -191,14 +194,11 @@ function Base.showerror(io::IO, err::LAMMPSError)
     print(io, "LAMMPSError: ", err.msg)
 end
 
-function check(lmp::LMP)
+function check(lmp::Union{LMP, Ptr{Cvoid}})
     err = API.lammps_has_error(lmp)
     # TODO: Check err == 1 or err == 2 (MPI)
     if err != 0
         throw(LAMMPSError(lmp))
-    elseif lmp.handle == C_NULL
-        throw(ArgumentError("The LMP object doesn't point to a valid LAMMPS instance! "
-            * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization."))
     end
 end
 
@@ -241,7 +241,6 @@ end
 ```
 """
 function command(lmp::LMP, cmd::Union{String, Array{String}})
-    check(lmp)
     if cmd isa String
         API.lammps_commands_string(lmp, cmd)
     else
@@ -260,7 +259,6 @@ Will be precise up to 53-bit signed integer due to the
 underlying `lammps_get_natoms` returning a Float64.
 """
 function get_natoms(lmp::LMP)
-    check(lmp)
     Int64(API.lammps_get_natoms(lmp))
 end
 
@@ -342,7 +340,6 @@ A full list of settings can be found here: <https://docs.lammps.org/Library_prop
 ```
 """
 function extract_setting(lmp::LMP, name::String)::Int32
-    check(lmp)
     return API.lammps_extract_setting(lmp, name)
 end
 
@@ -376,7 +373,6 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
 """
 function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
-    check(lmp)
     void_ptr = API.lammps_extract_global(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown global variable $name"))
 
@@ -430,7 +426,6 @@ if you wish to modify the internal state of the LAMMPS instance.
 A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
-    check(lmp)
     void_ptr = API.lammps_extract_atom(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
@@ -506,7 +501,6 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 ```
 """
 function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
-    check(lmp)
     API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
 
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
@@ -569,7 +563,6 @@ the kwarg `group` determines for which atoms the variable will be extracted. It'
 will be zeroed out. By default, all atoms will be extracted.
 """
 function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
-    check(lmp)
     lmp_variable != VAR_ATOM && !isnothing(group) && throw(ArgumentError("the group parameter is only supported for per atom variables!"))
 
     if isnothing(group)
@@ -647,7 +640,6 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
-    check(lmp)
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
@@ -687,7 +679,6 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
-    check(lmp)
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
@@ -777,7 +768,6 @@ row3 -> atom 2
 ```
 """
 function gather_bonds(lmp::LMP)
-    check(lmp)
     ndata = extract_global(lmp, "nbonds", LAMMPS_INT64)[]
     data = Matrix{Int32}(undef, 3, ndata)
     API.lammps_gather_bonds(lmp, data)
@@ -796,7 +786,6 @@ row4 -> atom 3
 ```
 """
 function gather_angles(lmp::LMP)
-    check(lmp)
     ndata = extract_global(lmp, "nangles", LAMMPS_INT64)[]
     data = Matrix{Int32}(undef, 4, ndata)
     API.lammps_gather_angles(lmp, data)
@@ -816,7 +805,6 @@ row5 -> atom 4
 ```
 """
 function gather_dihedrals(lmp::LMP)
-    check(lmp)
     ndata = extract_global(lmp, "ndihedrals", LAMMPS_INT64)[]
     data = Matrix{Int32}(undef, 5, ndata)
     API.lammps_gather_dihedrals(lmp, data)
@@ -836,7 +824,6 @@ row5 -> atom 4
 ```
 """
 function gather_impropers(lmp::LMP)
-    check(lmp)
     ndata = extract_global(lmp, "nimpropers", LAMMPS_INT64)[]
     data = Matrix{Int32}(undef, 5, ndata)
     API.lammps_gather_impropers(lmp, data)
@@ -849,7 +836,6 @@ end
 Find the IDs of the Atoms in the group.
 """
 function group_to_atom_ids(lmp::LMP, group::String)
-    check(lmp)
     # Pad with '\0' to avoid confusion with groups names that are truncated versions of name
     # For example 'all' could be confused with 'a'
     name_padded = codeunits(group * '\0')
@@ -881,7 +867,6 @@ Valid categories are: compute, dump, fix, group, molecule, region, and variable.
 names longer than `buffer_size` will be truncated to fit inside the buffer.
 """
 function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
-    check(lmp)
     _check_valid_category(category)
 
     count = API.lammps_id_count(lmp, category)
