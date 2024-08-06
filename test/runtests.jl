@@ -12,7 +12,7 @@ LMP(["-screen", "none"]) do lmp
     @test LAMMPS.version(lmp) >= 0
     command(lmp, "clear")
 
-    @test_throws ErrorException command(lmp, "nonsense")
+    @test_throws LAMMPSError command(lmp, "nonsense")
 end
 
 @testset "Extract Setting/Global" begin
@@ -291,6 +291,27 @@ end
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
+end
+
+@testset "Invalid LAMMPS instance" begin
+    LAMMPS_NULL = LMP(["-screen", "none"]); LAMMPS.close!(LAMMPS_NULL)
+
+    @test_throws ArgumentError LAMMPS.version(LAMMPS_NULL)
+    @test_throws ArgumentError command(LAMMPS_NULL, "")
+    @test_throws ArgumentError get_natoms(LAMMPS_NULL)
+    @test_throws ArgumentError extract_setting(LAMMPS_NULL, "")
+    @test_throws ArgumentError extract_global(LAMMPS_NULL, "", LAMMPS_NONE)
+    @test_throws ArgumentError extract_atom(LAMMPS_NULL, "", LAMMPS_NONE)
+    @test_throws ArgumentError extract_compute(LAMMPS_NULL, "", STYLE_ATOM, TYPE_VECTOR)
+    @test_throws ArgumentError extract_variable(LAMMPS_NULL, "", VAR_ATOM)
+    @test_throws ArgumentError gather(LAMMPS_NULL, "", Int32)
+    @test_throws ArgumentError scatter!(LAMMPS_NULL, "", Int32[])
+    @test_throws ArgumentError gather_bonds(LAMMPS_NULL)
+    @test_throws ArgumentError gather_angles(LAMMPS_NULL)
+    @test_throws ArgumentError gather_dihedrals(LAMMPS_NULL)
+    @test_throws ArgumentError gather_impropers(LAMMPS_NULL)
+    @test_throws ArgumentError group_to_atom_ids(LAMMPS_NULL, "")
+    @test_throws ArgumentError get_category_ids(LAMMPS_NULL, "")
 end
 
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
