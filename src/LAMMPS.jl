@@ -259,8 +259,8 @@ bexpand is a Bool that defines whether or not the box should be expanded to fit 
 """
 function create_atoms(
     lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
-    v::Union{Ptr{Float64},Matrix{Float64}}=Ptr{Float64}(C_NULL),
-    image::Union{Ptr{IMAGEINT},Vector{IMAGEINT}}=Ptr{IMAGEINT}(C_NULL),
+    v::Union{Nothing,Matrix{Float64}}=nothing,
+    image::Union{Nothing,Vector{IMAGEINT}}=nothing,
     bexpand::Bool=false
 )
     numAtoms = size(x, 2)
@@ -273,12 +273,15 @@ function create_atoms(
     if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
     end
-    if typeof(v) != Ptr{Float64} && size(x) != size(v)
+    if v != nothing && size(x) != size(v)
         throw(ArgumentError("x and v must be the same size"))
     end
-    if typeof(image) != Ptr{IMAGEINT} && numAtoms != length(image)
+    if image != nothing && numAtoms != length(image)
         throw(ArgumentError("image must have the same length as the number of atoms"))
     end
+
+    v = v == nothing ? Ptr{Float64}(C_NULL) : v
+    image = image == nothing ? Ptr{IMAGEINT}(C_NULL) : image
 
     API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
 end
