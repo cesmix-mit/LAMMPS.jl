@@ -139,7 +139,14 @@ mutable struct LMP
                 handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
             end
         end
-        check(handle)
+
+        if API.lammps_has_error(handle) != 0
+            buf = zeros(UInt8, 100)
+            API.lammps_get_last_error_message(handle, buf, length(buf))
+            msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
+            throw(LAMMPSError(msg))
+        end
+
         this = new(handle)
         finalizer(close!, this)
         return this
@@ -184,7 +191,7 @@ struct LAMMPSError <: Exception
     msg::String
 end
 
-function LAMMPSError(lmp::Union{LMP, Ptr{Cvoid}})
+function LAMMPSError(lmp::LMP)
     buf = zeros(UInt8, 100)
     API.lammps_get_last_error_message(lmp, buf, length(buf))
     msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
@@ -195,7 +202,7 @@ function Base.showerror(io::IO, err::LAMMPSError)
     print(io, "LAMMPSError: ", err.msg)
 end
 
-function check(lmp::Union{LMP, Ptr{Cvoid}})
+function check(lmp::LMP)
     err = API.lammps_has_error(lmp)
     # TODO: Check err == 1 or err == 2 (MPI)
     if err != 0
