@@ -146,11 +146,12 @@ mutable struct LMP
     end
 end
 
-function Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP)    
+function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)    
     lmp.handle == C_NULL && error("The LMP object doesn't point to a valid LAMMPS instance! "
             * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
-    return lmp.handle
+    return lmp
 end
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
 """
     close!(lmp::LMP)
