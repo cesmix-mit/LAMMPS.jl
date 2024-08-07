@@ -330,7 +330,7 @@ end
             lmp, "v", LAMMPS_DOUBLE_2D
         ))
 
-        @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types, v=v, image=image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types; v, image, bexpand=true) 
         @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types, v=v, image=image, bexpand=true) 
         @test_throws ArgumentError create_atoms(lmp, x, id, types[1:99], v=v, image=image, bexpand=true) 
         @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v[1:2,:], image=image, bexpand=true) 
