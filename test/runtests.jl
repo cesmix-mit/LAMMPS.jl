@@ -12,8 +12,17 @@ LMP(["-screen", "none"]) do lmp
     @test LAMMPS.version(lmp) >= 0
     command(lmp, "clear")
 
-    @test_throws ErrorException command(lmp, "nonsense")
+    @test_throws LAMMPSError command(lmp, "nonsense")
+
+    LAMMPS.close!(lmp)
+
+    expected_error = ErrorException("The LMP object doesn't point to a valid LAMMPS instance! "
+        * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
+
+    @test_throws expected_error command(lmp, "")
 end
+
+@test_throws LAMMPSError LMP(["-nonesense"])
 
 @testset "Extract Setting/Global" begin
     LMP(["-screen", "none"]) do lmp

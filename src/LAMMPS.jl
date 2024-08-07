@@ -4,7 +4,7 @@ include("api.jl")
 
 export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
-       scatter!, group_to_atom_ids, get_category_ids, extract_variable,
+       scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -140,10 +140,23 @@ mutable struct LMP
             end
         end
 
+        if API.lammps_has_error(handle) != 0
+            buf = zeros(UInt8, 100)
+            API.lammps_get_last_error_message(handle, buf, length(buf))
+            msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
+            throw(LAMMPSError(msg))
+        end
+
         this = new(handle)
         finalizer(close!, this)
         return this
     end
+end
+
+function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)    
+    lmp.handle == C_NULL && error("The LMP object doesn't point to a valid LAMMPS instance! "
+            * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
+    return lmp
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
@@ -174,16 +187,28 @@ function version(lmp::LMP)
     API.lammps_version(lmp)
 end
 
-function check(lmp::LMP)
-    err = API.lammps_has_error(lmp)
-    if err != 0
-        # TODO: Check err == 1 or err == 2 (MPI)
-        buf = zeros(UInt8, 100)
-        API.lammps_get_last_error_message(lmp, buf, length(buf))
-        error(rstrip(String(buf), '\0'))
-    end
+struct LAMMPSError <: Exception
+    msg::String
 end
 
+function LAMMPSError(lmp::LMP)
+    buf = zeros(UInt8, 100)
+    API.lammps_get_last_error_message(lmp, buf, length(buf))
+    msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
+    LAMMPSError(msg)
+end
+
+function Base.showerror(io::IO, err::LAMMPSError)
+    print(io, "LAMMPSError: ", err.msg)
+end
+
+function check(lmp::LMP)
+    err = API.lammps_has_error(lmp)
+    # TODO: Check err == 1 or err == 2 (MPI)
+    if err != 0
+        throw(LAMMPSError(lmp))
+    end
+end
 
 """
     command(lmp::LMP, cmd::Union{String, Array{String}})
