@@ -283,7 +283,7 @@ function create_atoms(
     v = v == nothing ? C_NULL : v
     image = image == nothing ? C_NULL : image
 
-    API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
+    API.lammps_create_atoms(lmp, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
 end
 
 """
