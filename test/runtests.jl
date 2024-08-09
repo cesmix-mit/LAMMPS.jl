@@ -331,10 +331,10 @@ end
         ))
 
         @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types; v, image, bexpand=true) 
-        @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types, v=v, image=image, bexpand=true) 
-        @test_throws ArgumentError create_atoms(lmp, x, id, types[1:99], v=v, image=image, bexpand=true) 
-        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v[1:2,:], image=image, bexpand=true) 
-        @test_throws ArgumentError create_atoms(lmp, x, id, types, v=v, image=image[1:99], bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types; v, image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types[1:99]; v, image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types; v=v[1:2,:]; image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types; v, image=image[1:99], bexpand=true) 
 
     end
 end

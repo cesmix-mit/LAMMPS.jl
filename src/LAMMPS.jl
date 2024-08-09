@@ -244,8 +244,8 @@ end
 """
     create_atoms(
         lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
-        v::Union{Ptr{Float64},Matrix{Float64}}=Ptr{Float64}(C_NULL),
-        image::Union{Ptr{IMAGEINT},Vector{IMAGEINT}}=Ptr{IMAGEINT}(C_NULL),
+        v::Union{Nothing,Matrix{Float64}}=nothing,
+        image::Union{Nothing,Vector{IMAGEINT}}=nothing,
         bexpand::Bool=false
     )
 
