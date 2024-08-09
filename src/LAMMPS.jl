@@ -280,8 +280,8 @@ function create_atoms(
         throw(ArgumentError("image must have the same length as the number of atoms"))
     end
 
-    v = v == nothing ? Ptr{Float64}(C_NULL) : v
-    image = image == nothing ? Ptr{IMAGEINT}(C_NULL) : image
+    v = v == nothing ? C_NULL : v
+    image = image == nothing ? C_NULL : image
 
     API.lammps_create_atoms(lmp.handle, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
 end
