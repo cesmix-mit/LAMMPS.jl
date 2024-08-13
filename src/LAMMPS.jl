@@ -263,7 +263,7 @@ Create atoms for a LAMMPS instance.
 `x` contains the atom positions and should be a 3 by `n` `Matrix{Float64}`, where `n` is the number of atoms. 
 `id` contains the id of each atom and should be a length `n` `Vector{Int32}`.
 `types` contains the atomic type (LAMMPS number) of each atom and should be a length `n` `Vector{Int32}`.
-`v ` contains the associated velocities and should be a 3 by `n` `Matrix{Float64}`.
+`v` contains the associated velocities and should be a 3 by `n` `Matrix{Float64}`.
 `image` contains the image flags for each atom and should be a length `n` `Vector{IMAGEINT}`.
 `bexpand` is a `Bool` that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
