@@ -260,12 +260,12 @@ end
     )
 
 Create atoms for a LAMMPS instance. 
-x contains the atom positions and should be a 3 by Matrix{Float64}, where n is the number of atoms. 
-id contains the id of each atom and should all be Vector{Int32} with length n.
-types contains the atomic type (LAMMPS number) of each atom and should all be a Vector{Int32} with length n.
-v contains the associated velocities and should be a 3 by Matrix{Float64}.
-image contains the image flags for each atom and should be Vector{IMAGEINT} with length n.
-bexpand is a Bool that defines whether or not the box should be expanded to fit the input atoms (default not).
+`x` contains the atom positions and should be a 3 by `n` `Matrix{Float64}`, where `n` is the number of atoms. 
+`id` contains the id of each atom and should be a length `n` `Vector{Int32}`.
+`types` contains the atomic type (LAMMPS number) of each atom and should be a length `n` `Vector{Int32}`.
+`v ` contains the associated velocities and should be a 3 by `n` `Matrix{Float64}`.
+`image` contains the image flags for each atom and should be a length `n` `Vector{IMAGEINT}`.
+`bexpand` is a `Bool` that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
 function create_atoms(
     lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
