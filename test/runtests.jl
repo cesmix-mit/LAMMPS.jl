@@ -302,4 +302,50 @@ end
     end
 end
 
+@testset "Create Atoms" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 2 0 2 0 2
+            create_box 1 cell
+            lattice sc 1
+        """)
+        x = rand(3, 100)
+        id = Int32.(collect(1:100))
+        types = ones(Int32, 100)
+        image = ones(Int32, 100)
+        v = rand(3, 100)
+
+
+        create_atoms(lmp, x, id, types, v=v, image=image, bexpand=true)
+        # Normally, you would have to sort by id, but we haven't done anything, so lammps
+        # will still have the same order
+        @test all(x .== extract_atom(
+            lmp, "x", LAMMPS_DOUBLE_2D
+        ))
+        @test all(v .== extract_atom(
+            lmp, "v", LAMMPS_DOUBLE_2D
+        ))
+
+        command(lmp, """
+            clear
+            atom_modify map yes
+            region cell block 0 2 0 2 0 2
+            create_box 1 cell
+            lattice sc 1
+        """)
+        create_atoms(lmp, x, id, types, bexpand=true)
+        @test all(zeros(3,100) .== extract_atom(
+            lmp, "v", LAMMPS_DOUBLE_2D
+        ))
+
+        @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types; v, image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types; v, image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types[1:99]; v, image, bexpand=true) 
+        @test_throws ArgumentError create_atoms(lmp, x, id, types; v=v[1:2,:], image, bexpand=true)
+        @test_throws ArgumentError create_atoms(lmp, x, id, types; v, image=image[1:99], bexpand=true) 
+
+    end
+end
+
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))

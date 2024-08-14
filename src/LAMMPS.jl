@@ -2,7 +2,7 @@ module LAMMPS
 import MPI
 include("api.jl")
 
-export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
+export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
        scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
 
@@ -33,8 +33,12 @@ export LMP, command, get_natoms, extract_atom, extract_compute, extract_global,
        # _LMP_STYLE_CONST
        STYLE_GLOBAL,
        STYLE_ATOM,
-       STYLE_LOCAL
+       STYLE_LOCAL,
 
+       # LAMMPS to Julia types
+       BIGINT,
+       TAGINT,
+       IMAGEINT
 
 using Preferences
 
@@ -74,6 +78,20 @@ const _LMP_STYLE_CONST = API._LMP_STYLE_CONST
 const STYLE_GLOBAL = API.LMP_STYLE_GLOBAL
 const STYLE_ATOM = API.LMP_STYLE_ATOM
 const STYLE_LOCAL = API.LMP_STYLE_LOCAL
+
+const BIGINT = API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64
+const TAGINT = API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64
+const IMAGEINT = API.lammps_extract_setting(C_NULL, "imageint") == 4 ? Int32 : Int64
+
+function __init__()
+    BIGINT != (API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64) &&
+        error("The size of the LAMMPS integer type BIGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+    TAGINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
+         error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+     IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
+         error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+end
+
 
 """
     locate()
@@ -259,6 +277,51 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
 end
 
 """
+    create_atoms(
+        lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+        v::Union{Nothing,Matrix{Float64}}=nothing,
+        image::Union{Nothing,Vector{IMAGEINT}}=nothing,
+        bexpand::Bool=false
+    )
+
+Create atoms for a LAMMPS instance. 
+`x` contains the atom positions and should be a 3 by `n` `Matrix{Float64}`, where `n` is the number of atoms. 
+`id` contains the id of each atom and should be a length `n` `Vector{Int32}`.
+`types` contains the atomic type (LAMMPS number) of each atom and should be a length `n` `Vector{Int32}`.
+`v` contains the associated velocities and should be a 3 by `n` `Matrix{Float64}`.
+`image` contains the image flags for each atom and should be a length `n` `Vector{IMAGEINT}`.
+`bexpand` is a `Bool` that defines whether or not the box should be expanded to fit the input atoms (default not).
+"""
+function create_atoms(
+    lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+    v::Union{Nothing,Matrix{Float64}}=nothing,
+    image::Union{Nothing,Vector{IMAGEINT}}=nothing,
+    bexpand::Bool=false
+)
+    numAtoms = size(x, 2)
+    if size(x, 1) != 3
+        throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
+    end
+    if numAtoms != length(id)
+        throw(ArgumentError("id must have the same length as the number of atoms"))
+    end
+    if numAtoms != length(types)
+        throw(ArgumentError("types must have the same length as the number of atoms"))
+    end
+    if v != nothing && size(x) != size(v)
+        throw(ArgumentError("x and v must be the same size"))
+    end
+    if image != nothing && numAtoms != length(image)
+        throw(ArgumentError("image must have the same length as the number of atoms"))
+    end
+
+    v = v == nothing ? C_NULL : v
+    image = image == nothing ? C_NULL : image
+
+    API.lammps_create_atoms(lmp, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
+end
+
+"""
     get_natoms(lmp::LMP)::Int64
 
 Get the total number of atoms in the LAMMPS instance.
@@ -364,7 +427,7 @@ Extract a global property from a LAMMPS instance.
 | `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
 | `LAMMPS_INT64`               | `Vector{Int64}`           |
 | `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
-| `LAMMPS_STRING`              | `String` (allways a copy) |
+| `LAMMPS_STRING`              | `String` (always a copy) |
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
