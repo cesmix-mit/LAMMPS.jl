@@ -65,8 +65,11 @@ end
         @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa  Vector{Float64}
         @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) == [1]
 
-        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
-        @test size(x) == (3, 27)
+        x1 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
+        @test size(x1) == (3, 27)
+
+        x2 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true) 
+        @test size(x2) == (3, 27)
 
         @test extract_atom(lmp, "image", LAMMPS_INT) isa Vector{Int32}
 

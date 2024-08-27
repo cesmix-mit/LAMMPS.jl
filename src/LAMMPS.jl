@@ -471,7 +471,7 @@ function extract_global_datatype(lmp::LMP, name)
 end
 
 """
-    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
+    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
 
@@ -484,9 +484,7 @@ Extract per-atom data from the lammps instance.
 | `LAMMPS_INT64`               | `Vector{Int64}`        |
 | `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
 
-the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
-As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
-if you wish to modify the internal state of the LAMMPS instance.
+`with_ghosts` determines wheter entries for ghost atoms are included. This is ignored for "mass".
 
 !!! info
     The returned data may become invalid if a re-neighboring operation
@@ -496,7 +494,7 @@ if you wish to modify the internal state of the LAMMPS instance.
 
 A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
 """
-function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
+function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
@@ -512,7 +510,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
         return _extract(ptr, length; copy=copy)
     end
 
-    length = extract_setting(lmp, "nlocal")
+    length = extract_setting(lmp, with_ghosts ? "nall" : "nlocal")
 
     if _is_2D_datatype(lmp_type)
         # only Quaternions have 4 entries
