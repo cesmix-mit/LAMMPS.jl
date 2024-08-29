@@ -492,7 +492,7 @@ Extract per-atom data from the lammps instance.
     trying to read from this data will likely cause julia to crash.
     To prevent this, set `copy=true`.
 
-A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
+A table with suported name keywords can be found in the [lammps documentation](https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc)
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
