@@ -138,7 +138,7 @@ end
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
 
-A full ist of Command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
+A full ist of command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
