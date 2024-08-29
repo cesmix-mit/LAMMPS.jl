@@ -138,7 +138,7 @@ end
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
 
-For a full ist of Command-line options see: https://docs.lammps.org/Run_options.html
+A full ist of command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
@@ -233,7 +233,7 @@ end
 
 Process LAMMPS input commands from a String or from an Array of Strings.
 
-For a full list of commands see: https://docs.lammps.org/commands_list.html
+A full list of commands can be found in the [lammps documentation](https://docs.lammps.org/commands_list.html).
 
 This function processes a multi-line string similar to a block of commands from a file.
 The string may have multiple lines (separated by newline characters) and also single commands may
@@ -249,7 +249,7 @@ Arrays of Strings get concatenated into a single String inserting newline charac
 
 # Examples
 
-```
+```julia
 LMP(["-screen", "none"]) do lmp
     command(lmp, \"""
         atom_modify map yes
@@ -393,7 +393,7 @@ _is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_
 
 Query LAMMPS about global settings.
 
-A full list of settings can be found here: <https://docs.lammps.org/Library_properties.html>
+A full list of settings can be found in the [lammps documentation](https://docs.lammps.org/Library_properties.html).
 
 # Examples
 ```julia
@@ -441,7 +441,7 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
     In general it is thus usually better to use a LAMMPS input command that sets or changes these parameters.
     Those will take care of all side effects and necessary updates of settings derived from such settings.
 
-A full list of global variables can be found here: <https://docs.lammps.org/Library_properties.html>
+A full list of global variables can be found in the [lammps documentation](https://docs.lammps.org/Library_properties.html).
 """
 function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
     void_ptr = API.lammps_extract_global(lmp, name)
@@ -471,7 +471,7 @@ function extract_global_datatype(lmp::LMP, name)
 end
 
 """
-    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
+    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
 
@@ -484,19 +484,19 @@ Extract per-atom data from the lammps instance.
 | `LAMMPS_INT64`               | `Vector{Int64}`        |
 | `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
 
-the kwarg `copy`, which defaults to true, determies wheter a copy of the underlying data is made.
-As the pointer to the underlying data is not persistent, it's highly recommended to only disable this,
-if you wish to modify the internal state of the LAMMPS instance.
-
 !!! info
     The returned data may become invalid if a re-neighboring operation
     is triggered at any point after calling this method. If this has happened,
     trying to read from this data will likely cause julia to crash.
     To prevent this, set `copy=true`.
 
-A table with suported name keywords can be found here: <https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc>
+A table with suported name keywords can be found in the [lammps documentation](https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc).
+
+## Arguments
+- `copy`: determines whether lammps internal memory is used or if a copy is made.
+- `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass".
 """
-function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false)
+function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
@@ -512,7 +512,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
         return _extract(ptr, length; copy=copy)
     end
 
-    length = extract_setting(lmp, "nlocal")
+    length = extract_setting(lmp, with_ghosts ? "nall" : "nlocal")
 
     if _is_2D_datatype(lmp_type)
         # only Quaternions have 4 entries
@@ -562,13 +562,13 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 # Examples
 
 ```julia
-    LMP(["-screen", "none"]) do lmp
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+LMP(["-screen", "none"]) do lmp
+    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
+    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
 
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
-        extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
-    end
+    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
+    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+end
 ```
 """
 function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
