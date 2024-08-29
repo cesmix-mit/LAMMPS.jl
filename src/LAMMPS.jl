@@ -493,7 +493,7 @@ Extract per-atom data from the lammps instance.
 A table with suported name keywords can be found in the [lammps documentation](https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc).
 
 ## Arguments
-- `copy`: determines wheter lammps internal memory is used or if a copy is made.
+- `copy`: determines whether lammps internal memory is used or if a copy is made.
 - `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass".
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
