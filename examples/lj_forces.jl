@@ -34,7 +34,7 @@ command(lmp, """
 
 # (x,y,z), natoms
 positions = rand(3, 10) .* 5
-scatter!(lmp, "x", positions)
+scatter!(lmp, :x, positions)
 
 # Compute pot_e
 command(lmp, "compute pot_e all pe")
@@ -42,5 +42,5 @@ command(lmp, "compute pot_e all pe")
 command(lmp, "run 0")
 
 # extract output
-forces = gather(lmp, "f", Float64)
-energies = extract_compute(lmp, "pot_e", STYLE_GLOBAL, TYPE_SCALAR)
+forces = gather(lmp, :f)
+energies = extract_compute(lmp, :pot_e, STYLE_GLOBAL, TYPE_SCALAR)
