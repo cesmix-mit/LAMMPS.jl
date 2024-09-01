@@ -516,11 +516,11 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 
 ```julia
 LMP(["-screen", "none"]) do lmp
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+    extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
+    extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
 
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+    extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
+    extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 end
 ```
 """
@@ -561,7 +561,7 @@ function extract_compute(lmp::LMP, name::Symbol, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
-    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
+    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{Symbol, Nothing}=nothing; copy::Bool=false)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
@@ -650,6 +650,7 @@ By default (when `ids=nothing`), this method collects data from all atoms in con
 The optional parameter `ids` determines for which subset of atoms the requested data will be gathered. The returned data will then be ordered according to `ids`
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
+`unwrap_image` only applies to `name=:image` and is ignored otherwise.
 
 The returned Array is decoupled from the internal state of the LAMMPS instance.
 
@@ -702,7 +703,7 @@ Base.@constprop :aggressive function gather(lmp::LMP, name::Symbol; ids::Union{N
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::Array, ids::Union{Nothing, Array{Int32}}=nothing)
+    scatter!(lmp::LMP, name::Symbol, data::Array; ids::Union{Nothing, Array{Int32}}=nothing)
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
@@ -856,7 +857,7 @@ function gather_impropers(lmp::LMP)
 end
 
 """
-    group_to_atom_ids(lmp::LMP, group::String)
+    group_to_atom_ids(lmp::LMP, group::Symbol)
 
 Find the IDs of the Atoms in the group.
 """
@@ -884,7 +885,7 @@ end
 
 
 """
-    get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+    get_category_ids(lmp::LMP, category::Symbol, buffer_size::Integer=50)
 
 Look up the names of entities within a certain category.
 
