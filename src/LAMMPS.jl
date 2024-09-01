@@ -6,23 +6,10 @@ export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, ex
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
        scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
 
-       # _LMP_DATATYPE
-       LAMMPS_NONE,
-       LAMMPS_INT,
-       LAMMPS_INT_2D,
-       LAMMPS_DOUBLE,
-       LAMMPS_DOUBLE_2D,
-       LAMMPS_INT64,
-       LAMMPS_INT64_2D,
-       LAMMPS_STRING,
-
        # _LMP_TYPE
        TYPE_SCALAR,
        TYPE_VECTOR,
        TYPE_ARRAY,
-       SIZE_VECTOR,
-       SIZE_ROWS,
-       SIZE_COLS,
 
        # _LMP_VARIABLE
        VAR_EQUAL,
@@ -44,17 +31,6 @@ using Preferences
 
 abstract type TypeEnum{N} end
 get_enum(::TypeEnum{N}) where N = N
-
-struct _LMP_DATATYPE{N} <: TypeEnum{N} end
-
-const LAMMPS_NONE = _LMP_DATATYPE{API.LAMMPS_NONE}()
-const LAMMPS_INT = _LMP_DATATYPE{API.LAMMPS_INT}()
-const LAMMPS_INT_2D = _LMP_DATATYPE{API.LAMMPS_INT_2D}()
-const LAMMPS_DOUBLE = _LMP_DATATYPE{API.LAMMPS_DOUBLE}()
-const LAMMPS_DOUBLE_2D = _LMP_DATATYPE{API.LAMMPS_DOUBLE_2D}()
-const LAMMPS_INT64 = _LMP_DATATYPE{API.LAMMPS_INT64}()
-const LAMMPS_INT64_2D = _LMP_DATATYPE{API.LAMMPS_INT64_2D}()
-const LAMMPS_STRING = _LMP_DATATYPE{API.LAMMPS_STRING}()
 
 struct _LMP_TYPE{N} <: TypeEnum{N} end
 
@@ -79,17 +55,24 @@ const STYLE_GLOBAL = API.LMP_STYLE_GLOBAL
 const STYLE_ATOM = API.LMP_STYLE_ATOM
 const STYLE_LOCAL = API.LMP_STYLE_LOCAL
 
-const BIGINT = API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64
-const TAGINT = API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64
-const IMAGEINT = API.lammps_extract_setting(C_NULL, "imageint") == 4 ? Int32 : Int64
+const BIGINT = API.lammps_extract_setting(C_NULL, :bigint) == 4 ? Int32 : Int64
+const TAGINT = API.lammps_extract_setting(C_NULL, :tagint) == 4 ? Int32 : Int64
+const IMAGEINT = API.lammps_extract_setting(C_NULL, :imageint) == 4 ? Int32 : Int64
+
+# don't use or alter this in any way except for `extract_atom_datatype` !!!
+const LAMMPS_DUMMY = Ref{Ptr{Cvoid}}(0)
 
 function __init__()
     BIGINT != (API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64) &&
         error("The size of the LAMMPS integer type BIGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
     TAGINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
-         error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
-     IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
-         error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+        error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+    IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
+        error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+
+
+    args = ["lammps", "-screen", "none", "-log", "none"]
+    LAMMPS_DUMMY[] = API.lammps_open_no_mpi(length(args), args, C_NULL)
 end
 
 
@@ -308,15 +291,15 @@ function create_atoms(
     if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
     end
-    if v != nothing && size(x) != size(v)
+    if !isnothing(v) && size(x) != size(v)
         throw(ArgumentError("x and v must be the same size"))
     end
-    if image != nothing && numAtoms != length(image)
+    if !isnothing(image) && numAtoms != length(image)
         throw(ArgumentError("image must have the same length as the number of atoms"))
     end
 
-    v = v == nothing ? C_NULL : v
-    image = image == nothing ? C_NULL : image
+    v = isnothing(v) ? C_NULL : v
+    image = isnothing(image) ? C_NULL : image
 
     API.lammps_create_atoms(lmp, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
 end
@@ -376,17 +359,17 @@ function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false) where T
     return copy ? Base.copy(result) : result
 end
 
-function _reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
-    T === LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
-    T === LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
-    T === LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
-    T === LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
-    T === LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
-    T === LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
-    T === LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
+function _reinterpret(T::API._LMP_DATATYPE_CONST, ptr::Ptr)
+    T === API.LAMMPS_INT && return Base.reinterpret(Ptr{Int32}, ptr)
+    T === API.LAMMPS_INT_2D && return Base.reinterpret(Ptr{Ptr{Int32}}, ptr)
+    T === API.LAMMPS_DOUBLE && return Base.reinterpret(Ptr{Float64}, ptr)
+    T === API.LAMMPS_DOUBLE_2D && return Base.reinterpret(Ptr{Ptr{Float64}}, ptr)
+    T === API.LAMMPS_INT64 && return Base.reinterpret(Ptr{Int64}, ptr)
+    T === API.LAMMPS_INT64_2D && return Base.reinterpret(Ptr{Ptr{Int64}}, ptr)
+    T === API.LAMMPS_STRING && return Base.reinterpret(Ptr{UInt8}, ptr)
 end
 
-_is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
+_is_2D_datatype(lmp_dtype::API._LMP_DATATYPE_CONST) = lmp_dtype in (API.LAMMPS_INT_2D, API.LAMMPS_DOUBLE_2D, API.LAMMPS_INT64_2D)
 
 """
     extract_setting(lmp::LMP, name::String)::Int32
@@ -405,84 +388,50 @@ A full list of settings can be found in the [lammps documentation](https://docs.
             create_atoms 1 region cell
         \""")
 
-        extract_setting(lmp, "dimension") |> println # 3
-        extract_setting(lmp, "nlocal") |> println # 27
+        extract_setting(lmp, :dimension) |> println # 3
+        extract_setting(lmp, :nlocal) |> println # 27
     end
 ```
 """
-function extract_setting(lmp::LMP, name::String)::Int32
+function extract_setting(lmp::LMP, name::Symbol)::Int32
     return API.lammps_extract_setting(lmp, name)
 end
 
 """
-    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+    extract_global(lmp::LMP, name::String)
 
 Extract a global property from a LAMMPS instance.
-
-| valid values for `lmp_type`: | resulting return type:    |
-| :--------------------------- | :------------------------ |
-| `LAMMPS_INT`                 | `Vector{Int32}`           |
-| `LAMMPS_INT_2D`              | `Matrix{Int32}`           |
-| `LAMMPS_DOUBLE`              | `Vector{Float64}`         |
-| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
-| `LAMMPS_INT64`               | `Vector{Int64}`           |
-| `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
-| `LAMMPS_STRING`              | `String` (always a copy) |
-
-Scalar values get returned as a vector with a single element. This way it's possible to
-modify the internal state of the LAMMPS instance even if the data is scalar.
-
-!!! info
-    Closing the LAMMPS instance or issuing a clear command after calling this method
-    will result in the returned data becoming invalid. To prevent this, set `copy=true`.
-
-!!! warning
-    Modifying the data through `extract_global` may lead to inconsistent internal data and thus may cause failures or crashes or bogus simulations.
-    In general it is thus usually better to use a LAMMPS input command that sets or changes these parameters.
-    Those will take care of all side effects and necessary updates of settings derived from such settings.
-
 A full list of global variables can be found in the [lammps documentation](https://docs.lammps.org/Library_properties.html).
 """
-function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+Base.@constprop :aggressive function extract_global(lmp::LMP, name::Symbol)
     void_ptr = API.lammps_extract_global(lmp, name)
-    void_ptr == C_NULL && throw(KeyError("Unknown global variable $name"))
+    void_ptr == C_NULL && throw(KeyError(name))
 
-    expect = extract_global_datatype(lmp, name)
-    receive = get_enum(lmp_type)
-    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
-
+    lmp_type = extract_global_datatype(name)
     ptr = _reinterpret(lmp_type, void_ptr)
 
-    lmp_type == LAMMPS_STRING && return _string(ptr)
+    lmp_type === API.LAMMPS_STRING && return _string(ptr)
 
-    if name in ("boxlo", "boxhi", "sublo", "subhi", "sublo_lambda", "subhi_lambda", "periodicity")
-        length = 3
-    elseif name in ("special_lj", "special_coul")
-        length = 4
-    else
-        length = 1
+    if name in (:boxlo, :boxhi, :sublo, :subhi, :sublo_lambda, :subhi_lambda, :periodicity, :procgrid)
+        ptr = reinterpret(Ptr{NTuple{3, eltype(ptr)}}, ptr)
+    elseif name in (:special_lj, :special_coul)
+        ptr = reinterpret(Ptr{NTuple{4, eltype(ptr)}}, ptr)
     end
 
-    return _extract(ptr, length; copy=copy)
+    return unsafe_load(ptr)
 end
 
-function extract_global_datatype(lmp::LMP, name)
-    return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(lmp, name))
+# marked as foldable to enable constant propagation
+Base.@assume_effects :foldable function extract_global_datatype(name)
+    # the handle get's ignored
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(C_NULL, name))
 end
 
 """
-    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
+    extract_atom(lmp::LMP, name::String; copy=false, with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
 
-| valid values for `lmp_type`: | resulting return type: |
-| :--------------------------- | :--------------------- |
-| `LAMMPS_INT`                 | `Vector{Int32}`        |
-| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
-| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
-| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
-| `LAMMPS_INT64`               | `Vector{Int64}`        |
-| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
 
 !!! info
     The returned data may become invalid if a re-neighboring operation
@@ -496,23 +445,20 @@ A table with suported name keywords can be found in the [lammps documentation](h
 - `copy`: determines whether lammps internal memory is used or if a copy is made.
 - `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass".
 """
-function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
+Base.@constprop :aggressive function extract_atom(lmp::LMP, name::Symbol; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
-    expect = extract_atom_datatype(lmp, name)
-    receive = get_enum(lmp_type)
-    expect != receive && error("TypeMismatch: Expected $expect got $receive instead!")
-
+    lmp_type = extract_atom_datatype(name)
     ptr = _reinterpret(lmp_type, void_ptr)
 
-    if name == "mass"
-        length = extract_global(lmp, "ntypes", LAMMPS_INT)[]
+    if name == :mass
+        length = extract_global(lmp, :ntypes)
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
         return _extract(ptr, length; copy=copy)
     end
 
-    length = extract_setting(lmp, with_ghosts ? "nall" : "nlocal")
+    length = extract_setting(lmp, with_ghosts ? :nall : :nlocal)
 
     if _is_2D_datatype(lmp_type)
         # only Quaternions have 4 entries
@@ -525,8 +471,18 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
     return _extract(ptr, length; copy=copy)
 end
 
-function extract_atom_datatype(lmp::LMP, name)
-    return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(lmp, name))
+Base.@assume_effects :foldable function extract_atom_datatype(name::Symbol)
+    name_str = "$name"
+
+    # custom properties; need to be handled seperately to ensure foldable
+    startswith(name_str, "i_") && return API.LAMMPS_INT
+    startswith(name_str, "i2_") && return API.LAMMPS_INT_2D
+    startswith(name_str, "d_") && return API.LAMMPS_DOUBLE
+    startswith(name_str, "d2_") && return API.LAMMPS_DOUBLE_2D
+
+    # the datatypes of all build-in properties are compile time constants. Nevertheless, `extract_compute`
+    # needs a valid handle. Therefore we use a dummy here.
+    return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(LAMMPS_DUMMY[], name))
 end
 
 """
@@ -547,9 +503,6 @@ Since computes may provide multiple kinds of data, it is required to set style a
 | `TYPE_SCALAR`                | `Vector{Float64}`      |
 | `TYPE_VECTOR`                | `Vector{Float64}`      |
 | `TYPE_ARRAY`                 | `Matrix{Float64}`      |
-| `SIZE_VECTOR`                | `Vector{Int32}`        |
-| `SIZE_COLS`                  | `Vector{Int32}`        |
-| `SIZE_ROWS`                  | `Vector{Int32}`        |
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
@@ -571,38 +524,38 @@ LMP(["-screen", "none"]) do lmp
 end
 ```
 """
-function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
-    API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
+function extract_compute(lmp::LMP, name::Symbol, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
+    API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError(name))
 
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
     void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
 
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
-        ptr = _reinterpret(LAMMPS_INT, void_ptr)
-        return _extract(ptr, 1; copy=copy)
+        ptr = _reinterpret(API.LAMMPS_INT, void_ptr)
+        return unsafe_load(ptr)
     end
 
     if lmp_type == TYPE_SCALAR
-        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(API.LAMMPS_DOUBLE, void_ptr)
         return _extract(ptr, 1; copy=copy)
     end
 
     if lmp_type == TYPE_VECTOR
         ndata = (style == STYLE_ATOM) ?
-            extract_setting(lmp, "nlocal") :
-            extract_compute(lmp, name, style, SIZE_VECTOR)[]
+            extract_setting(lmp, :nlocal) :
+            extract_compute(lmp, name, style, SIZE_VECTOR)
 
-        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(API.LAMMPS_DOUBLE, void_ptr)
         return  _extract(ptr, ndata; copy=copy)
     end
 
     ndata = (style == STYLE_ATOM) ?
-        extract_setting(lmp, "nlocal") :
-        extract_compute(lmp, name, style, SIZE_ROWS)[]
+        extract_setting(lmp, :nlocal) :
+        extract_compute(lmp, name, style, SIZE_ROWS)
 
-    count = extract_compute(lmp, name, style, SIZE_COLS)[]
-    ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+    count = extract_compute(lmp, name, style, SIZE_COLS)
+    ptr = _reinterpret(API.LAMMPS_DOUBLE_2D, void_ptr)
 
     return _extract(ptr, (count, ndata); copy=copy)
 end
@@ -633,7 +586,7 @@ the kwarg `group` determines for which atoms the variable will be extracted. It'
 `VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
 will be zeroed out. By default, all atoms will be extracted.
 """
-function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
+function extract_variable(lmp::LMP, name::Symbol, lmp_variable::_LMP_VARIABLE, group::Union{Symbol, Nothing}=nothing; copy::Bool=false)
     lmp_variable != VAR_ATOM && !isnothing(group) && throw(ArgumentError("the group parameter is only supported for per atom variables!"))
 
     if isnothing(group)
@@ -655,7 +608,7 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
     end
 
     if lmp_variable == VAR_EQUAL
-        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(API.LAMMPS_DOUBLE, void_ptr)
         result = unsafe_load(ptr)
         API.lammps_free(ptr)
         return result
@@ -666,22 +619,22 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         # "LMP_SIZE_VECTOR" is the only group name that won't be ignored for Vector Style Variables.
         # This isn't exposed to the high level API as it causes type instability for something that probably won't
         # ever be used outside of this implementation
-        ndata_ptr = _reinterpret(LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
+        ndata_ptr = _reinterpret(API.LAMMPS_INT, API.lammps_extract_variable(lmp, name, "LMP_SIZE_VECTOR"))
         ndata = unsafe_load(ndata_ptr)
         API.lammps_free(ndata_ptr)
 
-        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ptr = _reinterpret(API.LAMMPS_DOUBLE, void_ptr)
         return _extract(ptr, ndata; copy=copy)
     end
 
     if lmp_variable == VAR_ATOM
-        ndata = extract_setting(lmp, "nlocal")
-        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        ndata = extract_setting(lmp, :nlocal)
+        ptr = _reinterpret(API.LAMMPS_DOUBLE, void_ptr)
         # lammps expects us to take ownership of the data
         return _extract(ptr, ndata; copy=copy, own=true)
     end
 
-    ptr = _reinterpret(LAMMPS_STRING, void_ptr)
+    ptr = _reinterpret(API.LAMMPS_STRING, void_ptr)
     return _string(ptr)
 end
 
@@ -689,12 +642,8 @@ function extract_variable_datatype(lmp::LMP, name)
     return API._LMP_VAR_CONST(API.lammps_extract_variable_datatype(lmp, name))
 end
 
-
-@deprecate gather_atoms(lmp::LMP, name, T, count) gather(lmp, name, T)
-
-
 """
-    gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
+    gather(lmp::LMP, name::Symbol; ids::Union{Nothing, Array{Int32}}=nothing, unwrap_image=false)
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -710,18 +659,36 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+Base.@constprop :aggressive function gather(lmp::LMP, name::Symbol; ids::Union{Nothing, Array{Int32}}=nothing, unwrap_image=false)
+    name == :mass && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
-    count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
-
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
-
-    dtype = (T === Float64)
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
-    data = Matrix{T}(undef, (count, ndata))
+
+    count = _get_count(lmp, name)
+
+    if is_fix_compute(name)
+        data = iszero(count) ?
+            Vector{Float64}(undef, ndata) :
+            Matrix{Float64}(undef, count, ndata)
+    elseif name == :image && unwrap_image
+        count = 3
+        data = Matrix{Int32}(undef, count, ndata)
+    else
+        lmp_type = extract_atom_datatype(name)
+        if lmp_type == API.LAMMPS_DOUBLE
+            data = Vector{Float64}(undef, count * ndata)
+        elseif lmp_type == API.LAMMPS_DOUBLE_2D
+            data = Matrix{Float64}(undef, count, ndata)
+        elseif lmp_type == API.LAMMPS_INT
+            data = Vector{Int32}(undef, count * ndata)
+        elseif lmp_type == API.LAMMPS_INT_2D
+            data = Matrix{Int32}(undef, count, ndata)
+        end
+    end
+
+    dtype = eltype(data) == Float64
+    count = max(1, count)
 
     if isnothing(ids)
         API.lammps_gather(lmp, name, dtype, count, data)
@@ -735,7 +702,7 @@ function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, id
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::Array, ids::Union{Nothing, Array{Int32}}=nothing)
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
@@ -749,26 +716,34 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+function scatter!(lmp::LMP, name::Symbol, data::Array; ids::Union{Nothing, Array{Int32}}=nothing)
+    name == :mass && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
-    count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
-
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
-
-    dtype = (T === Float64)
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
+    count = _get_count(lmp, name)
+    count = max(1, count)
 
-    if data isa Vector
-        @assert count == 1
-        @assert ndata == lenght(data)
-    else
-        @assert count == size(data,1)
-        @assert ndata == size(data,2)
+    if name == :image && ndata*3 == length(data)
+        count = 3
     end
 
+    @assert count*ndata == length(data)
+
+    if is_fix_compute(name)
+        data::Array{Float64}
+    else
+        lmp_type = extract_atom_datatype(name)
+        if lmp_type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
+            data::Array{Float64}
+        elseif lmp_type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
+            data::Array{Int32}
+        else
+            throw(ArgumentError("key: $name does not have compatible datatype"))
+        end
+    end
+
+    dtype = eltype(data) == Float64
     if isnothing(ids)
         API.lammps_scatter(lmp, name, dtype, count, data)
     else
@@ -779,53 +754,32 @@ function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing,
     check(lmp)
 end
 
-function _get_count(lmp::LMP, name::String)
-    # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
-
-    if startswith(name, r"[f,c]_")
-        if name[1] == 'c'
-            API.lammps_has_id(lmp, "compute", name[3:end]) != 1 && error("Unknown per atom compute $name")
-
-            count_ptr = API.lammps_extract_compute(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
-        else
-            API.lammps_has_id(lmp, "fix", name[3:end]) != 1 && error("Unknown per atom fix $name")
-
-            count_ptr = API.lammps_extract_fix(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
-        end
-        check(lmp)
-
-        count_ptr = reinterpret(Ptr{Cint}, count_ptr)
-        count = unsafe_load(count_ptr)
-    
-        # a count of 0 indicates that the entity is a vector. In order to perserve type stability we just treat that as a 1xN Matrix.
-        return count == 0 ? 1 : count
-    elseif name in ("mass", "id", "type", "mask", "image", "molecule", "q", "radius", "rmass", "ellipsoid", "line", "tri", "body", "temperature", "heatflow")
-        return 1
-    elseif name in ("x", "v", "f", "mu", "omega", "angmom", "torque")
-        return 3
-    elseif name == "quat"
-        return 4
-    else
-        error("Unknown per atom property $name")
-    end
+Base.@assume_effects :foldable function is_fix_compute(name::Symbol)
+    name_str = "$name"
+    return startswith(name_str, r"[f,c]_")
 end
 
-function _get_T(lmp::LMP, name::String)
-    if startswith(name, r"[f,c]_")
-        return Float64 # computes and fixes are allways doubles
+function _get_count(lmp::LMP, name)
+    # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
+
+    name_str = "$name"
+    if startswith(name_str, r"[f,c]_")
+        if name_str[1] == 'c'
+            count_ptr = API.lammps_extract_compute(lmp::LMP, name_str[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
+        else
+            count_ptr = API.lammps_extract_fix(lmp::LMP, name_str[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
+        end
+        count_ptr == C_NULL && throw(KeyError(name))
+        count_ptr = _reinterpret(API.LAMMPS_INT, count_ptr)
+        return unsafe_load(count_ptr)
+    elseif name in (:mass, :id, :type, :mask, :image, :molecule, :q, :radius, :rmass, :ellipsoid, :line, :tri, :body, :temperature, :heatflow)
+        return 1
+    elseif name in (:x, :v, :f, :mu, :omega, :angmom, :torque)
+        return 3
+    elseif name == :quat
+        return 4
     end
-
-    type = API.lammps_extract_atom_datatype(lmp, name)
-    check(lmp)
-
-    if type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
-        return Int32
-    elseif type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
-        return Float64
-    else
-        error("Unkown per atom property $name")
-    end
-
+    throw(KeyError(name))
 end
 
 """
@@ -839,7 +793,7 @@ row3 -> atom 2
 ```
 """
 function gather_bonds(lmp::LMP)
-    ndata = extract_global(lmp, "nbonds", LAMMPS_INT64)[]
+    ndata = extract_global(lmp, :nbonds)
     data = Matrix{Int32}(undef, 3, ndata)
     API.lammps_gather_bonds(lmp, data)
     return data
@@ -857,7 +811,7 @@ row4 -> atom 3
 ```
 """
 function gather_angles(lmp::LMP)
-    ndata = extract_global(lmp, "nangles", LAMMPS_INT64)[]
+    ndata = extract_global(lmp, :nangles)
     data = Matrix{Int32}(undef, 4, ndata)
     API.lammps_gather_angles(lmp, data)
     return data
@@ -876,7 +830,7 @@ row5 -> atom 4
 ```
 """
 function gather_dihedrals(lmp::LMP)
-    ndata = extract_global(lmp, "ndihedrals", LAMMPS_INT64)[]
+    ndata = extract_global(lmp, :ndihedrals)
     data = Matrix{Int32}(undef, 5, ndata)
     API.lammps_gather_dihedrals(lmp, data)
     return data
@@ -895,7 +849,7 @@ row5 -> atom 4
 ```
 """
 function gather_impropers(lmp::LMP)
-    ndata = extract_global(lmp, "nimpropers", LAMMPS_INT64)[]
+    ndata = extract_global(lmp, :nimpropers)[]
     data = Matrix{Int32}(undef, 5, ndata)
     API.lammps_gather_impropers(lmp, data)
     return data
@@ -906,26 +860,26 @@ end
 
 Find the IDs of the Atoms in the group.
 """
-function group_to_atom_ids(lmp::LMP, group::String)
+function group_to_atom_ids(lmp::LMP, group::Symbol)
     # Pad with '\0' to avoid confusion with groups names that are truncated versions of name
     # For example 'all' could be confused with 'a'
-    name_padded = codeunits(group * '\0')
+    name_padded = codeunits(String(group) * '\0')
     buffer_size = length(name_padded)
     buffer = zeros(UInt8, buffer_size)
 
-    ngroups = API.lammps_id_count(lmp, "group")
+    ngroups = API.lammps_id_count(lmp, :group)
     
     for idx in 0:ngroups-1
-        API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
+        API.lammps_id_name(lmp, :group, idx, buffer, buffer_size)
         buffer != name_padded && continue
 
-        mask = gather(lmp, "mask", Int32)[:] .& (1 << idx) .!= 0
+        mask = gather(lmp, :mask) .& (1 << idx) .!= 0
         all_ids = UnitRange{Int32}(1, get_natoms(lmp))
 
         return all_ids[mask]
     end
 
-    error("Cannot find group $group")
+    throw(KeyError(group))
 end
 
 
@@ -937,23 +891,23 @@ Look up the names of entities within a certain category.
 Valid categories are: compute, dump, fix, group, molecule, region, and variable.
 names longer than `buffer_size` will be truncated to fit inside the buffer.
 """
-function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
+function get_category_ids(lmp::LMP, category::Symbol, buffer_size::Integer=50)
     _check_valid_category(category)
 
     count = API.lammps_id_count(lmp, category)
     check(lmp)
 
-    res = Vector{String}(undef, count)
+    res = Vector{Symbol}(undef, count)
 
     for i in 1:count
         buffer = zeros(UInt8, buffer_size)
         API.lammps_id_name(lmp, category, i-1, buffer, buffer_size)
-        res[i] = rstrip(String(buffer), '\0')
+        res[i] = Symbol(buffer[1:findfirst(iszero, buffer)-1])
     end
 
     return res
 end
 
-_check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
+_check_valid_category(category::Symbol) = category in (:compute, :dump, :fix, :group, :molecule, :region, :variable) || throw(KeyError(category))
 
 end # module

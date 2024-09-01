@@ -32,19 +32,10 @@ end
                 create_box 1 cell
         """)
 
-        @test extract_global(lmp, "dt", LAMMPS_DOUBLE)[] isa Float64
-        @test extract_global(lmp, "boxhi", LAMMPS_DOUBLE) == [1, 2, 3]
-        @test extract_global(lmp, "nlocal", LAMMPS_INT)[] == extract_setting(lmp, "nlocal") == 0
-
-        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
-        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
-
-        @test pointer(with_copy1) != pointer(with_copy2)
-
-        without_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
-        without_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
-
-        @test pointer(with_copy1) != pointer(with_copy2)
+        @test extract_global(lmp, :dt) isa Float64
+        @test extract_global(lmp, :boxhi) === (1.0, 2.0, 3.0)
+        @test extract_global(lmp, :nlocal) == extract_setting(lmp, :nlocal) == 0
+        @test_throws KeyError extract_global(lmp, :nonesense)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -62,18 +53,16 @@ end
             mass 1 1
         """)
 
-        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa  Vector{Float64}
-        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) == [1]
+        @test extract_atom(lmp, :mass) isa  Vector{Float64}
+        @test extract_atom(lmp, :mass) == [1]
 
-        x1 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
+        x1 = extract_atom(lmp, :x) 
         @test size(x1) == (3, 27)
 
-        x2 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true) 
+        x2 = extract_atom(lmp, :x; with_ghosts=true) 
         @test size(x2) == (3, 27)
 
-        @test extract_atom(lmp, "image", LAMMPS_INT) isa Vector{Int32}
-
-        @test_throws ErrorException extract_atom(lmp, "v", LAMMPS_DOUBLE)
+        @test extract_atom(lmp, :image) isa Vector{Int32}
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -98,22 +87,22 @@ end
             group odd id 1 3 5 7
         """)
 
-        @test extract_variable(lmp, "var1", VAR_EQUAL) == 1.0
-        @test extract_variable(lmp, "var2", VAR_STRING) == "hello"
-        x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
-        x_var = extract_variable(lmp, "var3", VAR_ATOM)
+        @test extract_variable(lmp, :var1, VAR_EQUAL) == 1.0
+        @test extract_variable(lmp, :var2, VAR_STRING) == "hello"
+        x = extract_atom(lmp, :x)
+        x_var = extract_variable(lmp, :var3, VAR_ATOM)
         @test length(x_var) == 10
         @test x_var == x[1, :]
-        press = extract_variable(lmp, "var4", VAR_VECTOR)
+        press = extract_variable(lmp, :var4, VAR_VECTOR)
         @test press isa Vector{Float64}
 
-        x_var_group = extract_variable(lmp, "var3", VAR_ATOM, "odd")
+        x_var_group = extract_variable(lmp, :var3, VAR_ATOM, :odd)
         in_group = BitVector((1, 0, 1, 0, 1, 0, 1, 0, 0, 0))
 
         @test x_var_group[in_group] == x[1, in_group]
         @test all(x_var_group[.!in_group] .== 0)
 
-        @test_throws ErrorException extract_variable(lmp, "var3", VAR_EQUAL)
+        @test_throws ErrorException extract_variable(lmp, :var3, VAR_EQUAL)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -132,7 +121,7 @@ end
         variable var atom id
     """)
 
-    var = extract_variable(lmp, "var", VAR_ATOM)
+    var = extract_variable(lmp, :var, VAR_ATOM)
     var_copy = copy(var)
     LAMMPS.close!(lmp)
 
@@ -165,40 +154,37 @@ end
         subset_bad2 = Int32.([0])
         subset_bad_data = ones(Float64, 3,1)
 
-        @test_throws AssertionError gather(lmp, "x", Int32)
-        @test_throws AssertionError gather(lmp, "id", Float64)
+        @test_throws KeyError gather(lmp, :nonesense)
+        @test_throws KeyError gather(lmp, :c_nonsense)
+        @test_throws KeyError gather(lmp, :f_nonesense)
 
-        @test_throws ErrorException gather(lmp, "nonesense", Float64)
-        @test_throws ErrorException gather(lmp, "c_nonsense", Float64)
-        @test_throws ErrorException gather(lmp, "f_nonesense", Float64)
+        @test_throws AssertionError gather(lmp, :x; ids=subset_bad1)
+        @test_throws AssertionError gather(lmp, :x, ids=subset_bad2)
 
-        @test_throws AssertionError gather(lmp, "x", Float64, subset_bad1)
-        @test_throws AssertionError gather(lmp, "x", Float64, subset_bad2)
+        @test_throws KeyError scatter!(lmp, :nonesense, data)
+        @test_throws KeyError scatter!(lmp, :c_nonsense, data)
+        @test_throws KeyError scatter!(lmp, :f_nonesense, data)
 
-        @test_throws ErrorException scatter!(lmp, "nonesense", data)
-        @test_throws ErrorException scatter!(lmp, "c_nonsense", data)
-        @test_throws ErrorException scatter!(lmp, "f_nonesense", data)
+        @test_throws AssertionError scatter!(lmp, :x, subset_bad_data; ids=subset_bad1)
+        @test_throws AssertionError scatter!(lmp, :x, subset_bad_data; ids=subset_bad2)
 
-        @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad1)
-        @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad2)
+        @test gather(lmp, :x) == gather(lmp, :c_pos) == gather(lmp, :f_pos)
 
-        @test gather(lmp, "x", Float64) == gather(lmp, "c_pos", Float64) == gather(lmp, "f_pos", Float64)
+        @test gather(lmp, :x)[:,subset] == gather(lmp, :x; ids=subset)
+        @test gather(lmp, :c_pos)[:,subset] == gather(lmp, :c_pos; ids=subset)
+        @test gather(lmp, :f_pos)[:,subset] == gather(lmp, :f_pos; ids=subset)
 
-        @test gather(lmp, "x", Float64)[:,subset] == gather(lmp, "x", Float64, subset)
-        @test gather(lmp, "c_pos", Float64)[:,subset] == gather(lmp, "c_pos", Float64, subset)
-        @test gather(lmp, "f_pos", Float64)[:,subset] == gather(lmp, "f_pos", Float64, subset)
+        scatter!(lmp, :x, data)
+        scatter!(lmp, :f_pos, data)
+        scatter!(lmp, :c_pos, data)
 
-        scatter!(lmp, "x", data)
-        scatter!(lmp, "f_pos", data)
-        scatter!(lmp, "c_pos", data)
+        @test gather(lmp, :x) == gather(lmp, :c_pos) == gather(lmp, :f_pos) == data
 
-        @test gather(lmp, "x", Float64) == gather(lmp, "c_pos", Float64) == gather(lmp, "f_pos", Float64) == data
+        scatter!(lmp, :x, data_subset; ids=subset)
+        scatter!(lmp, :c_pos, data_subset; ids=subset)
+        scatter!(lmp, :f_pos, data_subset; ids=subset)
 
-        scatter!(lmp, "x", data_subset, subset)
-        scatter!(lmp, "c_pos", data_subset, subset)
-        scatter!(lmp, "f_pos", data_subset, subset)
-
-        @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
+        @test gather(lmp, :x; ids=subset) == gather(lmp, :c_pos; ids=subset) == gather(lmp, :f_pos; ids=subset) == data_subset
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -251,16 +237,16 @@ end
             compute pos all property/atom x y z
         """)
 
-        @test extract_compute(lmp, "pos", STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        @test extract_compute(lmp, :pos, STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, :x)
 
-        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
-        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+        extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
+        extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
 
-        @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
-        @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+        @test extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
+        @test extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_ATOM, TYPE_SCALAR)
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_ARRAY)
+        @test_throws ErrorException extract_compute(lmp, :thermo_temp, STYLE_ATOM, TYPE_SCALAR)
+        @test_throws ErrorException extract_compute(lmp, :thermo_temp, STYLE_GLOBAL, TYPE_ARRAY)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -283,11 +269,11 @@ end
             group odd id 1 3 5 7
         """)
 
-        @test group_to_atom_ids(lmp, "all") == 1:8
-        @test group_to_atom_ids(lmp, "a") == [1, 2, 3, 5, 8]
-        @test group_to_atom_ids(lmp, "even") == [2, 4, 6, 8]
-        @test group_to_atom_ids(lmp, "odd") == [1, 3, 5, 7]
-        @test_throws ErrorException group_to_atom_ids(lmp, "nonesense")
+        @test group_to_atom_ids(lmp, :all) == 1:8
+        @test group_to_atom_ids(lmp, :a) == [1, 2, 3, 5, 8]
+        @test group_to_atom_ids(lmp, :even) == [2, 4, 6, 8]
+        @test group_to_atom_ids(lmp, :odd) == [1, 3, 5, 7]
+        @test_throws KeyError group_to_atom_ids(lmp, :nonesense)
 
         command(lmp, [
             "compute pos all property/atom x y z",
@@ -295,10 +281,10 @@ end
             "run 10"
         ])
 
-        @test get_category_ids(lmp, "group") == ["all", "a", "even", "odd"]
-        @test get_category_ids(lmp, "compute") == ["thermo_temp", "thermo_press", "thermo_pe", "pos"] # some of these computes are there by default it seems
-        @test get_category_ids(lmp, "fix") == ["1"]
-        @test_throws ErrorException get_category_ids(lmp, "nonesense")
+        @test get_category_ids(lmp, :group) == [:all, :a, :even, :odd]
+        @test get_category_ids(lmp, :compute) == [:thermo_temp, :thermo_press, :thermo_pe, :pos] # some of these computes are there by default it seems
+        @test get_category_ids(lmp, :fix) == [Symbol(1)]
+        @test_throws KeyError get_category_ids(lmp, :nonesense)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -323,12 +309,8 @@ end
         create_atoms(lmp, x, id, types, v=v, image=image, bexpand=true)
         # Normally, you would have to sort by id, but we haven't done anything, so lammps
         # will still have the same order
-        @test all(x .== extract_atom(
-            lmp, "x", LAMMPS_DOUBLE_2D
-        ))
-        @test all(v .== extract_atom(
-            lmp, "v", LAMMPS_DOUBLE_2D
-        ))
+        @test all(x .== extract_atom(lmp, :x))
+        @test all(v .== extract_atom(lmp, :v))
 
         command(lmp, """
             clear
@@ -338,9 +320,7 @@ end
             lattice sc 1
         """)
         create_atoms(lmp, x, id, types, bexpand=true)
-        @test all(zeros(3,100) .== extract_atom(
-            lmp, "v", LAMMPS_DOUBLE_2D
-        ))
+        @test all(zeros(3,100) .== extract_atom(lmp, :v))
 
         @test_throws ArgumentError create_atoms(lmp, x[1:2,:], id, types; v, image, bexpand=true) 
         @test_throws ArgumentError create_atoms(lmp, x, id[1:99], types; v, image, bexpand=true) 
