@@ -849,7 +849,7 @@ row5 -> atom 4
 ```
 """
 function gather_impropers(lmp::LMP)
-    ndata = extract_global(lmp, :nimpropers)[]
+    ndata = extract_global(lmp, :nimpropers)
     data = Matrix{Int32}(undef, 5, ndata)
     API.lammps_gather_impropers(lmp, data)
     return data
