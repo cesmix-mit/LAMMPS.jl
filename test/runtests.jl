@@ -31,8 +31,10 @@ end
                 region cell block 0 1 0 2 0 3
                 create_box 1 cell
         """)
+        get_dt(lmp) = extract_global(lmp, :dt)
+        @inferred get_dt(lmp)
+        @test get_dt(lmp) isa Float64
 
-        @test extract_global(lmp, :dt) isa Float64
         @test extract_global(lmp, :boxhi) === (1.0, 2.0, 3.0)
         @test extract_global(lmp, :nlocal) == extract_setting(lmp, :nlocal) == 0
         @test_throws KeyError extract_global(lmp, :nonesense)
@@ -53,8 +55,9 @@ end
             mass 1 1
         """)
 
-        @test extract_atom(lmp, :mass) isa  Vector{Float64}
-        @test extract_atom(lmp, :mass) == [1]
+        get_mass(lmp) = extract_atom(lmp, :mass)
+        @inferred get_mass(lmp)
+        @test get_mass(lmp) == [1]
 
         x1 = extract_atom(lmp, :x) 
         @test size(x1) == (3, 27)
@@ -185,6 +188,9 @@ end
         scatter!(lmp, :f_pos, data_subset; ids=subset)
 
         @test gather(lmp, :x; ids=subset) == gather(lmp, :c_pos; ids=subset) == gather(lmp, :f_pos; ids=subset) == data_subset
+
+        gather_x(lmp) = gather(lmp, :x)
+        @inferred gather_x(lmp)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
