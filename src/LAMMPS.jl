@@ -420,7 +420,7 @@ Base.@assume_effects :foldable function extract_global_datatype(name)
 end
 
 """
-    extract_atom(lmp::LMP, name::String; copy=false, with_ghosts=false)
+    extract_atom(lmp::LMP, name::Symbol; copy=false, with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
 
@@ -563,7 +563,7 @@ function extract_compute(lmp::LMP, name::Symbol, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
-    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{Symbol, Nothing}=nothing; copy::Bool=false)
+    extract_variable(lmp::LMP, name::Symbol, lmp_variable::LMP_VARIABLE, group::Union{Symbol, Nothing}=nothing; copy::Bool=false)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
