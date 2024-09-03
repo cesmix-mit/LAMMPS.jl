@@ -472,7 +472,7 @@ Base.@assume_effects :foldable function _extract_atom_datatype(name::Symbol)
     startswith(name_str, "d_") && return API.LAMMPS_DOUBLE
     startswith(name_str, "d2_") && return API.LAMMPS_DOUBLE_2D
 
-    # create a temporary lammps instance as lammps_extract_atom_datatype reqires a valid handle.
+    # create a temporary lammps instance as lammps_extract_atom_datatype requires a valid handle.
     # this unfortuately has the unavoidable side-effect of initializing MPI. However, as this
     # function is expected to be called only after another lammps instance has been created,
     # this shouldn't be a problem.
