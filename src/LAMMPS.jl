@@ -488,7 +488,7 @@ Base.@assume_effects :foldable function _extract_atom_datatype(name::Symbol)
 end
 
 """
-    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
+    extract_compute(lmp::LMP, name::Symbol, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
 
 Extract data provided by a compute command identified by the compute-ID.
 Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
