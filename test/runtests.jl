@@ -351,4 +351,11 @@ end
     end
 end
 
-@test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+@testset "MPI" begin
+    if Sys.iswindows()
+        @test LAMMPS.API.lammps_config_has_mpi_support() == 0
+    else
+        @test LAMMPS.API.lammps_config_has_mpi_support() != 0
+        @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+    end
+end
