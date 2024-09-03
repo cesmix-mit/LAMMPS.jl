@@ -59,9 +59,6 @@ const BIGINT = API.lammps_extract_setting(C_NULL, :bigint) == 4 ? Int32 : Int64
 const TAGINT = API.lammps_extract_setting(C_NULL, :tagint) == 4 ? Int32 : Int64
 const IMAGEINT = API.lammps_extract_setting(C_NULL, :imageint) == 4 ? Int32 : Int64
 
-# don't use or alter this in any way except for `extract_atom_datatype` !!!
-const LAMMPS_DUMMY = Ref{Ptr{Cvoid}}(0)
-
 function __init__()
     BIGINT != (API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64) &&
         error("The size of the LAMMPS integer type BIGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
@@ -69,10 +66,6 @@ function __init__()
         error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
     IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
         error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
-
-
-    args = ["lammps", "-screen", "none", "-log", "none"]
-    LAMMPS_DUMMY[] = API.lammps_open_no_mpi(length(args), args, C_NULL)
 end
 
 
@@ -423,7 +416,6 @@ end
 
 # marked as foldable to enable constant propagation
 Base.@assume_effects :foldable function extract_global_datatype(name)
-    # the handle get's ignored
     return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(C_NULL, name))
 end
 
@@ -447,9 +439,9 @@ A table with suported name keywords can be found in the [lammps documentation](h
 """
 Base.@constprop :aggressive function extract_atom(lmp::LMP, name::Symbol; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
-    void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
+    void_ptr == C_NULL && throw(KeyError(name))
 
-    lmp_type = extract_atom_datatype(name)
+    lmp_type = _extract_atom_datatype(name)
     ptr = _reinterpret(lmp_type, void_ptr)
 
     if name == :mass
@@ -464,25 +456,36 @@ Base.@constprop :aggressive function extract_atom(lmp::LMP, name::Symbol; copy=f
         # only Quaternions have 4 entries
         # length is a Int32 and lammps_wrap expects a NTuple, so it's
         # neccecary to use Int32 for count as well
-        count = name == "quat" ? Int32(4) : Int32(3)
+        count = name == :quat ? Int32(4) : Int32(3)
         return _extract(ptr, (count, length); copy=copy)
     end
 
     return _extract(ptr, length; copy=copy)
 end
 
-Base.@assume_effects :foldable function extract_atom_datatype(name::Symbol)
+Base.@assume_effects :foldable function _extract_atom_datatype(name::Symbol)
+    # custom properties need to be handled seperately as lammps_extract_atom_datatype verifies 
+    # that they exist and is therefore not consistent. This applies the same logic for custom
+    # properties as lammps_extract_atom_datatype without verifying their existance.
     name_str = "$name"
-
-    # custom properties; need to be handled seperately to ensure foldable
     startswith(name_str, "i_") && return API.LAMMPS_INT
     startswith(name_str, "i2_") && return API.LAMMPS_INT_2D
     startswith(name_str, "d_") && return API.LAMMPS_DOUBLE
     startswith(name_str, "d2_") && return API.LAMMPS_DOUBLE_2D
 
-    # the datatypes of all build-in properties are compile time constants. Nevertheless, `extract_compute`
-    # needs a valid handle. Therefore we use a dummy here.
-    return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(LAMMPS_DUMMY[], name))
+    # create a temporary lammps instance as lammps_extract_atom_datatype reqires a valid handle.
+    # this unfortuately has the unavoidable side-effect of initializing MPI. However, as this
+    # function is expected to be called only after another lammps instance has been created,
+    # this shouldn't be a problem.
+    args = ["lammps", "-screen", "none", "-log", "none"]
+    if API.lammps_config_has_mpi_support() != 0
+        handle = API.lammps_open(length(args), args, MPI.COMM_SELF, C_NULL)
+    else
+        handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
+    end
+    lmp_type = API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(handle, name))
+    API.lammps_close(handle)
+    return lmp_type
 end
 
 """
@@ -594,9 +597,9 @@ function extract_variable(lmp::LMP, name::Symbol, lmp_variable::_LMP_VARIABLE, g
     end
 
     void_ptr = API.lammps_extract_variable(lmp, name, group)
-    void_ptr == C_NULL && throw(KeyError("Unknown variable $name"))
+    void_ptr == C_NULL && throw(KeyError(name))
 
-    expect = extract_variable_datatype(lmp, name)
+    expect = _extract_variable_datatype(lmp, name)
     receive = get_enum(lmp_variable)
     if expect != receive
         # the documentation instructs us to free the pointers for these styles specifically
@@ -638,7 +641,7 @@ function extract_variable(lmp::LMP, name::Symbol, lmp_variable::_LMP_VARIABLE, g
     return _string(ptr)
 end
 
-function extract_variable_datatype(lmp::LMP, name)
+function _extract_variable_datatype(lmp::LMP, name)
     return API._LMP_VAR_CONST(API.lammps_extract_variable_datatype(lmp, name))
 end
 
@@ -676,7 +679,7 @@ Base.@constprop :aggressive function gather(lmp::LMP, name::Symbol; ids::Union{N
         count = 3
         data = Matrix{Int32}(undef, count, ndata)
     else
-        lmp_type = extract_atom_datatype(name)
+        lmp_type = _extract_atom_datatype(name)
         if lmp_type == API.LAMMPS_DOUBLE
             data = Vector{Float64}(undef, count * ndata)
         elseif lmp_type == API.LAMMPS_DOUBLE_2D
@@ -734,7 +737,7 @@ function scatter!(lmp::LMP, name::Symbol, data::Array; ids::Union{Nothing, Array
     if is_fix_compute(name)
         data::Array{Float64}
     else
-        lmp_type = extract_atom_datatype(name)
+        lmp_type = _extract_atom_datatype(name)
         if lmp_type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
             data::Array{Float64}
         elseif lmp_type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)

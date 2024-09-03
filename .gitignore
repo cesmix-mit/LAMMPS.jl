@@ -3,6 +3,7 @@
 *.jl.mem
 
 Manifest.toml
+LocalPreferences.toml
 
 # generated docs
 docs/build/
