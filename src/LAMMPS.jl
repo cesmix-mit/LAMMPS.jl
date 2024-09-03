@@ -365,7 +365,7 @@ end
 _is_2D_datatype(lmp_dtype::API._LMP_DATATYPE_CONST) = lmp_dtype in (API.LAMMPS_INT_2D, API.LAMMPS_DOUBLE_2D, API.LAMMPS_INT64_2D)
 
 """
-    extract_setting(lmp::LMP, name::String)::Int32
+    extract_setting(lmp::LMP, name::Symbol)::Int32
 
 Query LAMMPS about global settings.
 
@@ -391,7 +391,7 @@ function extract_setting(lmp::LMP, name::Symbol)::Int32
 end
 
 """
-    extract_global(lmp::LMP, name::String)
+    extract_global(lmp::LMP, name::Symbol)
 
 Extract a global property from a LAMMPS instance.
 A full list of global variables can be found in the [lammps documentation](https://docs.lammps.org/Library_properties.html).
@@ -423,7 +423,6 @@ end
     extract_atom(lmp::LMP, name::String; copy=false, with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
-
 
 !!! info
     The returned data may become invalid if a re-neighboring operation
