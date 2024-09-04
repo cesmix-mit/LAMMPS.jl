@@ -371,7 +371,9 @@ end
 
         neighlist = find_pair_neighlist(lmp, "zero")
         @test length(neighlist) == 27
-        @test length(neighlist[1]) == 4
+        iatom, neihgs = neighlist[1]
+        @test iatom == 1 # account for 1-based indexing
+        @test length(neihgs) == 3
         @test_throws KeyError find_pair_neighlist(lmp, "nonesense")
     end
 end
