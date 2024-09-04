@@ -963,7 +963,7 @@ struct NeighListVec <: AbstractVector{Int32}
 end
 
 function Base.getindex(nle::NeighListVec, i::Integer)
-    1 <= i <= nle.numneigh || throw(BoundsError(nle, i))
+    @boundscheck 1 <= i <= nle.numneigh || throw(BoundsError(nle, i))
     return unsafe_load(nle.neighbors, i)+1
 end
 
