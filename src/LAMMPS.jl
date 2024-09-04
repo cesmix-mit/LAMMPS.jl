@@ -965,6 +965,7 @@ end
 
 function Base.getindex(nle::NeighListElement, i::Integer)
     1 <= i <= nle.numneigh+1 || throw(BoundsError(nle, i))
+    # add one to account for 1-based indexing in julia.
     return i == 1 ? nle.iatom+1 : unsafe_load(nle.neighbors, i-1)+1
 end
 
@@ -979,25 +980,60 @@ function Base.getindex(nl::NeighList, element::Integer)
     iatom = Ref{Int32}()
     numneigh = Ref{Int32}()
     neighbors = Ref{Ptr{Int32}}()
-    API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1, iatom, numneigh, neighbors)
+    API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1 #= 0-based indexing =#, iatom, numneigh, neighbors)
     iatom[] == -1 && throw(BoundsError(nl, element))
     return NeighListElement(iatom[], numneigh[], neighbors[])
 end
 
 Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
 
+"""
+    find_compute_neighlist(lmp::LMP, id::String; request=0)
+
+Find index of a neighbor list requested by a compute
+
+The neighbor list request from a compute is identified by the compute ID and the request ID.
+The request ID is typically 0, but will be > 0 in case a compute has multiple neighbor list requests.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned form `extract_atom`.
+"""
 function find_compute_neighlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
     idx == -1 && throw(KeyError(id))
     return NeighList(lmp, idx)
 end
 
+"""
+    find_fix_neighlist(lmp::LMP, id::String; request=0)
+
+Find index of a neighbor list requested by a fix
+
+The neighbor list request from a fix is identified by the fix ID and the request ID.
+The request ID is typically 0, but will be > 0 in case a fix has multiple neighbor list requests.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned form `extract_atom`.
+"""
 function find_fix_neighlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
     idx == -1 && throw(KeyError(id))
     return NeighList(lmp, idx)
 end
 
+"""
+    find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+
+This function determines which of the available neighbor lists for pair styles matches the given conditions. It first matches the style name. If exact is true the name must match exactly,
+if exact is false, a regular expression or sub-string match is done. If the pair style is hybrid or hybrid/overlay the style is matched against the sub styles instead.
+If a the same pair style is used multiple times as a sub-style, the nsub argument must be > 0 and represents the nth instance of the sub-style (same as for the pair_coeff command, for example).
+In that case nsub=0 will not produce a match and this function will Error.
+
+The final condition to be checked is the request ID (reqid). This will normally be 0, but some pair styles request multiple neighbor lists and set the request ID to a value > 0.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned form `extract_atom`.
+"""
 function find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
     idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
     idx == -1 && throw(KeyError(style))
