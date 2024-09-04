@@ -996,7 +996,7 @@ The neighbor list request from a compute is identified by the compute ID and the
 The request ID is typically 0, but will be > 0 in case a compute has multiple neighbor list requests.
 
 Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned form `extract_atom`.
+These can be used to index into Arrays returned from `extract_atom`.
 """
 function find_compute_neighlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
@@ -1013,7 +1013,7 @@ The neighbor list request from a fix is identified by the fix ID and the request
 The request ID is typically 0, but will be > 0 in case a fix has multiple neighbor list requests.
 
 Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned form `extract_atom`.
+These can be used to index into Arrays returned from `extract_atom`.
 """
 function find_fix_neighlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
@@ -1032,7 +1032,7 @@ In that case nsub=0 will not produce a match and this function will Error.
 The final condition to be checked is the request ID (reqid). This will normally be 0, but some pair styles request multiple neighbor lists and set the request ID to a value > 0.
 
 Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned form `extract_atom`.
+These can be used to index into Arrays returned from `extract_atom`.
 """
 function find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
     idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
