@@ -5,6 +5,7 @@ include("api.jl")
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
        scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
+       find_compute_neighlist, find_fix_neighlist, find_pair_neighlist,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -955,5 +956,53 @@ function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
 end
 
 _check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
+
+struct NeighListElement <: AbstractVector{Int32}
+    iatom::Int32
+    numneigh::Int
+    neighbors::Ptr{Int32}
+end
+
+function Base.getindex(nle::NeighListElement, i::Integer)
+    1 <= i <= nle.numneigh+1 || throw(BoundsError(nle, i))
+    return i == 1 ? nle.iatom+1 : unsafe_load(nle.neighbors, i-1)+1
+end
+
+Base.size(nle::NeighListElement) = (nle.numneigh+1,)
+
+struct NeighList <: AbstractVector{NeighListElement}
+    lmp::LMP
+    idx::Int
+end
+
+function Base.getindex(nl::NeighList, element::Integer)
+    iatom = Ref{Int32}()
+    numneigh = Ref{Int32}()
+    neighbors = Ref{Ptr{Int32}}()
+    API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1, iatom, numneigh, neighbors)
+    iatom[] == -1 && throw(BoundsError(nl, element))
+    return NeighListElement(iatom[], numneigh[], neighbors[])
+end
+
+Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
+
+function find_compute_neighlist(lmp::LMP, id::String; request=0)
+    idx = API.lammps_find_compute_neighlist(lmp, id, request)
+    idx == -1 && throw(KeyError(id))
+    return NeighList(lmp, idx)
+end
+
+function find_fix_neighlist(lmp::LMP, id::String; request=0)
+    idx = API.lammps_find_compute_neighlist(lmp, id, request)
+    idx == -1 && throw(KeyError(id))
+    return NeighList(lmp, idx)
+end
+
+function find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+    idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
+    idx == -1 && throw(KeyError(style))
+    return NeighList(lmp, idx)
+end
+
 
 end # module
