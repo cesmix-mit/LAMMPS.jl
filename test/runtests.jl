@@ -351,4 +351,29 @@ end
     end
 end
 
+@testset "Neighbor lists" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            pair_style zero 1.0
+            pair_coeff * *
+
+            fix runfix all nve
+
+            run 1
+        """)
+
+        neighlist = find_pair_neighlist(lmp, "zero")
+        @test length(neighlist) == 27
+        @test length(neighlist[1]) == 4
+        @test_throws KeyError find_pair_neighlist(lmp, "nonesense")
+    end
+end
+
 @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
