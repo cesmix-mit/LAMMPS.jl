@@ -91,6 +91,17 @@ function __init__()
          error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
      IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
          error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+
+    if API.lammps_config_has_mpi_support() == 0
+        @warn "The currently loaded LAMMPS installation does not have MPI enabled! \n" *
+        "Please provide your own LAMMPS installation with `LAMMPS.set_library()` if you \n" *
+        "want to run LAMMPS in parallel using MPI." 
+    end
+
+    if API.lammps_config_has_exceptions() == 0
+        @warn "The currently loaded LAMMPS installation doesn't have exceptions enabled! \n" *
+        "This causes the REPL to crash whenever LAMMPS encounters an error."
+    end
 end
 
 
