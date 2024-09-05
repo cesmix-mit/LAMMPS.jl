@@ -1031,6 +1031,35 @@ The final condition to be checked is the request ID (reqid). This will normally 
 
 Each neighbor list contains vectors of local indices of neighboring atoms.
 These can be used to index into Arrays returned from `extract_atom`.
+
+## Examples
+```julia
+lmp = LMP()
+
+command(lmp, \"""
+    region cell block 0 3 0 3 0 3
+    create_box 1 cell
+    lattice sc 1
+    create_atoms 1 region cell
+    mass 1 1
+
+    pair_style zero 1.0
+    pair_coeff * *
+
+    run 1
+\""")
+
+x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true)
+
+for (iatom, neighs) in find_pair_neighlist(lmp, "zero")
+    for jatom in neighs
+        ix = @view x[:, iatom]
+        jx = @view x[:, jatom]
+
+        println(ix => jx)
+   end
+end
+```
 """
 function find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
     idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
