@@ -986,9 +986,9 @@ struct NeighList <: AbstractVector{Pair{Int32, NeighListVec}}
 end
 
 function Base.getindex(nl::NeighList, element::Integer)
-    iatom = Ref{Int32}()
-    numneigh = Ref{Int32}()
-    neighbors = Ref{Ptr{Int32}}()
+    iatom = Ref{Cint}(-1)
+    numneigh = Ref{Cint}()
+    neighbors = Ref{Ptr{Cint}}()
     API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1 #= 0-based indexing =#, iatom, numneigh, neighbors)
     iatom[] == -1 && throw(BoundsError(nl, element))
     return iatom[]+1 => NeighListVec(numneigh[], neighbors[])
