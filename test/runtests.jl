@@ -351,4 +351,8 @@ end
     end
 end
 
-@test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+if !Sys.iswindows()
+    @testset "MPI" begin
+         @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
+    end
+end
