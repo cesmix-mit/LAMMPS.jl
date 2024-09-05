@@ -5,7 +5,7 @@ include("api.jl")
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
        scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
-       find_compute_neighlist, find_fix_neighlist, find_pair_neighlist,
+       compute_neighborlist, fix_neighborlist, pair_neighborlist,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -997,7 +997,7 @@ end
 Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
 
 """
-    find_compute_neighlist(lmp::LMP, id::String; request=0)
+    compute_neighborlist(lmp::LMP, id::String; request=0)
 
 Find index of a neighbor list requested by a compute
 
@@ -1007,14 +1007,14 @@ The request ID is typically 0, but will be > 0 in case a compute has multiple ne
 Each neighbor list contains vectors of local indices of neighboring atoms.
 These can be used to index into Arrays returned from `extract_atom`.
 """
-function find_compute_neighlist(lmp::LMP, id::String; request=0)
+function compute_neighborlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
     idx == -1 && throw(KeyError(id))
     return NeighList(lmp, idx)
 end
 
 """
-    find_fix_neighlist(lmp::LMP, id::String; request=0)
+    fix_neighborlist(lmp::LMP, id::String; request=0)
 
 Find index of a neighbor list requested by a fix
 
@@ -1024,14 +1024,14 @@ The request ID is typically 0, but will be > 0 in case a fix has multiple neighb
 Each neighbor list contains vectors of local indices of neighboring atoms.
 These can be used to index into Arrays returned from `extract_atom`.
 """
-function find_fix_neighlist(lmp::LMP, id::String; request=0)
+function fix_neighborlist(lmp::LMP, id::String; request=0)
     idx = API.lammps_find_compute_neighlist(lmp, id, request)
     idx == -1 && throw(KeyError(id))
     return NeighList(lmp, idx)
 end
 
 """
-    find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+    pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
 
 This function determines which of the available neighbor lists for pair styles matches the given conditions. It first matches the style name. If exact is true the name must match exactly,
 if exact is false, a regular expression or sub-string match is done. If the pair style is hybrid or hybrid/overlay the style is matched against the sub styles instead.
@@ -1062,7 +1062,7 @@ command(lmp, \"""
 
 x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true)
 
-for (iatom, neighs) in find_pair_neighlist(lmp, "zero")
+for (iatom, neighs) in pair_neighborlist(lmp, "zero")
     for jatom in neighs
         ix = @view x[:, iatom]
         jx = @view x[:, jatom]
@@ -1072,7 +1072,7 @@ for (iatom, neighs) in find_pair_neighlist(lmp, "zero")
 end
 ```
 """
-function find_pair_neighlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+function pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
     idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
     idx == -1 && throw(KeyError(style))
     return NeighList(lmp, idx)

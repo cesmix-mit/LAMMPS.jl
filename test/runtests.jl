@@ -369,12 +369,12 @@ end
             run 1
         """)
 
-        neighlist = find_pair_neighlist(lmp, "zero")
+        neighlist = pair_neighborlist(lmp, "zero")
         @test length(neighlist) == 27
         iatom, neihgs = neighlist[1]
         @test iatom == 1 # account for 1-based indexing
         @test length(neihgs) == 3
-        @test_throws KeyError find_pair_neighlist(lmp, "nonesense")
+        @test_throws KeyError pair_neighborlist(lmp, "nonesense")
     end
 end
 
