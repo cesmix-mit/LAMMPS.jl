@@ -582,7 +582,10 @@ LMP(["-screen", "none"]) do lmp
 end
 ```
 """
-function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
+function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; 
+                         copy::Bool=false,
+                         size_2d::Union{Tuple{Int64,Int64}, Nothing}=nothing)
+
     API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
 
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
@@ -606,6 +609,12 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
         return  _extract(ptr, ndata; copy=copy)
+    end
+
+    # if you know the size of the 2D array, skip getting the row size, column size
+    if lmp_type == TYPE_ARRAY && !isnothing(size_2d)
+        ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+        return _extract(ptr, size_2d; copy=copy)
     end
 
     ndata = (style == STYLE_ATOM) ?
