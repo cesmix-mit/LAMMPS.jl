@@ -541,7 +541,7 @@ function extract_atom_datatype(lmp::LMP, name)
 end
 
 """
-    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
+    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true, size_2d::Union{Tuple{Int64,Int64}, Nothing}=nothing)
 
 Extract data provided by a compute command identified by the compute-ID.
 Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
@@ -564,6 +564,14 @@ Since computes may provide multiple kinds of data, it is required to set style a
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
+
+The `size_2d` argument allows users to pre-specify the size of the 2D array when `style=STYLE_GLOBAL` 
+and `lmp_type=TYPE_ARRAY`, thus bypassing the need to perform multiple extracts to determine row and column size. 
+
+!!! warning
+    The `size_2d` option is fundamentally memory-unsafe and will lead to out-of-bounds access if the specified 
+    size is larger than the array returned by the LAMMPS instance. It should only be used if the user confidently 
+    knows what size the returned 2D array will be. Otherwise, do not use this keyword argument!
 
 !!! info
     The returned data may become invalid as soon as another LAMMPS command has been issued at any point after calling this method.

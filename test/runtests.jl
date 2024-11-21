@@ -267,6 +267,29 @@ end
     end
 end
 
+@testset "Extract Compute Global Array" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 6 0 6 0 6
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            compute bin3d all chunk/atom bin/3d x lower 3.0 y lower 3.0 z lower 3.0 compress yes units box
+            compute prop3 all property/chunk bin3d id count
+        """)
+
+        prop_arr1 = extract_compute(lmp, "prop3", STYLE_GLOBAL, TYPE_ARRAY)
+        @test size(prop_arr1) == (2,8)
+
+        prop_arr2 = extract_compute(lmp, "prop3", STYLE_GLOBAL, TYPE_ARRAY; size_2d=(2,8))
+        @test prop_arr1 == prop_arr2
+    end
+end
+
+
 @testset "Utilities" begin
     LMP(["-screen", "none"]) do lmp
         # setting up example data
