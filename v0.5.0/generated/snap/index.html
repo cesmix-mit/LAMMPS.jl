@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Basic SNAP · LAMMPS.jl</title><meta name="title" content="Basic SNAP · LAMMPS.jl"/><meta property="og:title" content="Basic SNAP · LAMMPS.jl"/><meta property="twitter:title" content="Basic SNAP · LAMMPS.jl"/><meta name="description" content="Documentation for LAMMPS.jl."/><meta property="og:description" content="Documentation for LAMMPS.jl."/><meta property="twitter:description" content="Documentation for LAMMPS.jl."/><meta property="og:url" content="https://cesmix-mit.github.io/LAMMPS.jl/generated/snap/"/><meta property="twitter:url" content="https://cesmix-mit.github.io/LAMMPS.jl/generated/snap/"/><link rel="canonical" href="https://cesmix-mit.github.io/LAMMPS.jl/generated/snap/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">LAMMPS.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Basic SNAP</a><ul class="internal"><li><a class="tocitem" href="#Install-dependencies"><span>Install dependencies</span></a></li></ul></li><li><a class="tocitem" href="../fitting_snap/">Fitting SNAP</a></li></ul></li><li><a class="tocitem" href="../../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Basic SNAP</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Basic SNAP</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/cesmix-mit/LAMMPS.jl/blob/main/examples/snap.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="SNAP-example-using-GaN"><a class="docs-heading-anchor" href="#SNAP-example-using-GaN">SNAP example using GaN</a><a id="SNAP-example-using-GaN-1"></a><a class="docs-heading-anchor-permalink" href="#SNAP-example-using-GaN" title="Permalink"></a></h1><p>In this example we extract the bispectrum from SNAP. This example demonstrates how to install and use LAMMPS.jl</p><h2 id="Install-dependencies"><a class="docs-heading-anchor" href="#Install-dependencies">Install dependencies</a><a id="Install-dependencies-1"></a><a class="docs-heading-anchor-permalink" href="#Install-dependencies" title="Permalink"></a></h2><p>First let&#39;s make sure we have all required packages installed</p><pre><code class="language-julia hljs">using Pkg
+pkg&quot;add LAMMPS&quot;</code></pre><p>LAMMPS.jl will automatically download and install a pre-built version of LAMMPS.</p><p>We start off by importing <code>LAMMPS</code>.</p><pre><code class="language-julia hljs">using LAMMPS
+
+const DATA = joinpath(dirname(pathof(LAMMPS)), &quot;..&quot;, &quot;examples&quot;, &quot;example_GaN_data&quot;)
+
+function run_snap(lmp, path, rcut, twojmax)
+    command(lmp, &quot;&quot;&quot;
+        log none
+        units metal
+        boundary p p p
+        atom_style atomic
+        atom_modify map array
+        read_data $path
+        pair_style zero $rcut
+        pair_coeff * *
+        compute PE all pe
+        compute S all pressure thermo_temp
+        compute SNA all sna/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1
+        compute SNAD all snad/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1
+        compute SNAV all snav/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1
+        thermo_style custom pe
+        run 0
+    &quot;&quot;&quot;)
+
+    # Extract bispectrum
+    bs = gather(lmp, &quot;c_SNA&quot;, Float64)
+    return bs
+end
+
+function calculate_snap_bispectrum(path, rcut, twojmax, M, N1, N2)
+    J = twojmax / 2
+    ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3) + 1)
+
+    A = LMP([&quot;-screen&quot;,&quot;none&quot;]) do lmp
+        A = Array{Float64}(undef, M, 2*ncoeff) # bispectrum is 2*(ncoeff - 1) + 2
+        for m in 1:M
+            data = joinpath(path, string(m), &quot;DATA&quot;)
+            bs = run_snap(lmp, data, rcut, twojmax)
+
+            # Make bispectrum sum vector
+            row = Float64[]
+
+            push!(row, N1)
+
+            for k in 1:(ncoeff-1)
+                acc = 0.0
+                for n in 1:N1
+                    acc += bs[k, n]
+                end
+                push!(row, acc)
+            end
+
+            push!(row, N2)
+            for k in 1:(ncoeff-1)
+                acc = 0.0
+                for n in N1 .+ (1:N2)
+                    acc += bs[k, n]
+                end
+                push!(row, acc)
+            end
+
+            A[m, :] = row
+
+            command(lmp, &quot;clear&quot;)
+        end
+        return A
+    end
+    return A, ncoeff
+end
+
+const rcut = 3.5
+const twojmax = 6
+const M  = 48 # number of input files
+const N1 = 96 # number of atoms of the first type
+const N2 = 96 # number of atoms of the second type
+A, ncoeff = calculate_snap_bispectrum(DATA, rcut, twojmax, M, N1, N2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">([96.0 714.8921306293827 … 1336.492540361043 432.0280579642445; 96.0 741.6379436413091 … 1254.106124342181 545.8425828497783; … ; 96.0 737.1339390521061 … 1253.9195498524505 539.1307198276115; 96.0 738.856450472822 … 1254.9583526931956 551.4702122992459], 31)</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../fitting_snap/">Fitting SNAP »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Monday 1 July 2024 19:25">Monday 1 July 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
