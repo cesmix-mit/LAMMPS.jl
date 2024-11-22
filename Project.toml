@@ -1,7 +1,7 @@
 name = "LAMMPS"
 uuid = "ee2e13b9-eee9-4449-aafa-cfa6a2dbe14d"
 authors = ["Valentin Churavy <v.churavy@gmail.com>"]
-version = "0.7.2"
+version = "0.8.0"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
