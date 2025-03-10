@@ -49,7 +49,7 @@ end
 end
 
 # Register external fix
-lj = LAMMPS.PairExternal(lmp_julia, "julia_lj", "zero", compute_force, compute_energy, cutoff)
+lj = LAMMPS.PairExternal(lmp_julia, "julia_lj", "zero", compute_force, compute_energy, cutoff, true, true)
 
 # Setup atoms
 natoms = 10
