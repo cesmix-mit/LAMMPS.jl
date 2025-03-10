@@ -1,5 +1,8 @@
 module LAMMPS
 import MPI
+import LinearAlgebra
+import OpenBLAS32_jll
+
 include("api.jl")
 
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
@@ -85,6 +88,12 @@ const TAGINT = API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64
 const IMAGEINT = API.lammps_extract_setting(C_NULL, "imageint") == 4 ? Int32 : Int64
 
 function __init__()
+    # LAMMPS requires using LP64, default to OpenBLAS32 if not already available
+    config = LinearAlgebra.BLAS.lbt_get_config()
+    if !any(lib -> lib.interface == :lp64, config.loaded_libs)
+        LinearAlgebra.BLAS.lbt_forward(OpenBLAS32_jll.libopenblas_path)
+    end
+
     BIGINT != (API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64) &&
         error("The size of the LAMMPS integer type BIGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
     TAGINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
