@@ -514,7 +514,7 @@ A table with suported name keywords can be found in the [lammps documentation](h
 
 ## Arguments
 - `copy`: determines whether lammps internal memory is used or if a copy is made.
-- `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass".
+- `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass", or when there is no ghost atom data available.
 """
 function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
@@ -532,13 +532,14 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
         return _extract(ptr, length; copy=copy)
     end
 
-    length = extract_setting(lmp, with_ghosts ? "nall" : "nlocal")
+    length = if with_ghosts
+        API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_ROWS)
+    else
+        extract_setting(lmp, "nlocal")
+    end
 
     if _is_2D_datatype(lmp_type)
-        # only Quaternions have 4 entries
-        # length is a Int32 and lammps_wrap expects a NTuple, so it's
-        # neccecary to use Int32 for count as well
-        count = name == "quat" ? Int32(4) : Int32(3)
+        count = API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
         return _extract(ptr, (count, length); copy=copy)
     end
 
@@ -805,11 +806,9 @@ function _get_count(lmp::LMP, name::String)
     if startswith(name, r"[f,c]_")
         if name[1] == 'c'
             API.lammps_has_id(lmp, "compute", name[3:end]) != 1 && error("Unknown per atom compute $name")
-
             count_ptr = API.lammps_extract_compute(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
         else
             API.lammps_has_id(lmp, "fix", name[3:end]) != 1 && error("Unknown per atom fix $name")
-
             count_ptr = API.lammps_extract_fix(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
         end
         check(lmp)
@@ -818,15 +817,15 @@ function _get_count(lmp::LMP, name::String)
         count = unsafe_load(count_ptr)
     
         # a count of 0 indicates that the entity is a vector. In order to perserve type stability we just treat that as a 1xN Matrix.
-        return count == 0 ? 1 : count
-    elseif name in ("mass", "id", "type", "mask", "image", "molecule", "q", "radius", "rmass", "ellipsoid", "line", "tri", "body", "temperature", "heatflow")
-        return 1
-    elseif name in ("x", "v", "f", "mu", "omega", "angmom", "torque")
-        return 3
-    elseif name == "quat"
-        return 4
+        return count == 0 ? Cint(1) : count
     else
-        error("Unknown per atom property $name")
+        type = API.lammps_extract_atom_datatype(lmp, name)
+        type == -1 && error("Unknown per-atom property $name")
+        if type in (API.LAMMPS_INT_2D, API.LAMMPS_DOUBLE_2D, API.LAMMPS_INT64_2D)
+            API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
+        else
+            return Cint(1)
+        end
     end
 end
 
