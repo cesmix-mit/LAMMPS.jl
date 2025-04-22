@@ -69,5 +69,6 @@ energy_julia = LAMMPS.API.lammps_get_thermo(lmp_julia, "etotal")
     @test potential_native ≈ potential_julia
     @test forces_native ≈ forces_julia
     @test virial_native ≈ virial_julia
+    @test virial_tot_native ≈ virial_tot_julia
     @test energy_native ≈ energy_julia
 end
