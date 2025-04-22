@@ -31,7 +31,7 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fix = Base.unsafe_pointer_to_objref(ctx)::FixExternal
     nlocal = Int(nlocal)
 
-    nghost = Int(extract_global(fix.lmp, "nghost"))
+    nghost = Int(extract_global(fix.lmp, "nghost", LAMMPS_INT))
 
     @debug "Calling fix_external_callback on" fix timestep nlocal
     shape = (nlocal+nghost, 3)
