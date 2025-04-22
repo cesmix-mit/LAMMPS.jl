@@ -187,6 +187,12 @@ mutable struct LMP
 
         this = new(handle)
         finalizer(close!, this)
+
+        ver = version(this)
+        if ver < 20250402 
+            loaded = string(ver)[1:4] * '-' * string(ver)[5:6] * '-' * string(ver)[7:8]
+            error("This version of LAMMPS.jl is only compatible with lammps version 2025-04-02 or newer.\nThe currently loaded version of lammps is $loaded")
+        end
         return this
     end
 end
