@@ -230,7 +230,7 @@ struct LAMMPSError <: Exception
 end
 
 function LAMMPSError(lmp::LMP)
-    buf = zeros(UInt8, 100)
+    buf = zeros(UInt8, 255)
     API.lammps_get_last_error_message(lmp, buf, length(buf))
     msg = replace(rstrip(String(buf), '\0'), "ERROR: " => "")
     LAMMPSError(msg)
@@ -592,10 +592,8 @@ end
 ```
 """
 function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
-    API.lammps_has_id(lmp, "compute", name) != 1 && throw(KeyError("Unknown compute $name"))
-
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
-    void_ptr == C_NULL && error("Compute $name doesn't have data matching $style, $(get_enum(lmp_type))")
+    check(lmp)
 
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
@@ -661,7 +659,7 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
     end
 
     void_ptr = API.lammps_extract_variable(lmp, name, group)
-    void_ptr == C_NULL && throw(KeyError("Unknown variable $name"))
+    check(lmp)
 
     expect = extract_variable_datatype(lmp, name)
     receive = get_enum(lmp_variable)
@@ -706,7 +704,9 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
 end
 
 function extract_variable_datatype(lmp::LMP, name)
-    return API._LMP_VAR_CONST(API.lammps_extract_variable_datatype(lmp, name))
+    res = API.lammps_extract_variable_datatype(lmp, name)
+    check(lmp)
+    return API._LMP_VAR_CONST(res)
 end
 
 

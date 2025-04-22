@@ -259,8 +259,8 @@ end
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_ATOM, TYPE_SCALAR)
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_ARRAY)
+        @test_throws LAMMPSError extract_compute(lmp, "thermo_temp", STYLE_ATOM, TYPE_SCALAR)
+        @test_throws LAMMPSError extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_ARRAY)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
