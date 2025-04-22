@@ -259,8 +259,8 @@ end
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_ATOM, TYPE_SCALAR)
-        @test_throws ErrorException extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_ARRAY)
+        @test_throws LAMMPSError extract_compute(lmp, "thermo_temp", STYLE_ATOM, TYPE_SCALAR)
+        @test_throws LAMMPSError extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_ARRAY)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
@@ -348,6 +348,40 @@ end
         @test_throws ArgumentError create_atoms(lmp, x, id, types; v=v[1:2,:], image, bexpand=true)
         @test_throws ArgumentError create_atoms(lmp, x, id, types; v, image=image[1:99], bexpand=true) 
 
+    end
+end
+
+@testset "Custom Properties" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            fix customprop all property/atom i_int i2_int2 5 d_float d2_float2 6
+        """)
+
+        i_int = extract_atom(lmp, "i_int", LAMMPS_INT)
+        @test size(i_int) == (27,)
+        @test all(iszero, i_int)
+
+        i2_int2 = extract_atom(lmp, "i2_int2", LAMMPS_INT_2D)
+        @test size(i2_int2) == (5, 27)
+        @test all(iszero, i2_int2)
+
+        d_float = extract_atom(lmp, "d_float", LAMMPS_DOUBLE)
+        @test size(d_float) == (27,)
+        @test all(iszero, d_float)
+
+        d2_float2 = extract_atom(lmp, "d2_float2", LAMMPS_DOUBLE_2D)
+        @test size(d2_float2) == (6, 27)
+        @test all(iszero, d2_float2)
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
 
