@@ -17,10 +17,6 @@ for lmp in (lmp_native, lmp_julia)
 end
 
 cutoff = 2.5
-command(lmp_julia, "pair_style zero $cutoff")
-command(lmp_julia, "pair_coeff * *")
-command(lmp_julia, "fix julia_lj all external pf/callback 1 1")
-
 command(lmp_native, "pair_style lj/cut $cutoff")
 command(lmp_native, "pair_coeff * * 1 1")
 
@@ -30,33 +26,27 @@ const coefficients = Base.ImmutableDict(
     )
 )
 
-@inline function compute_force(rsq, itype, jtype)
+# Register external fix
+lj = LAMMPS.PairExternal(lmp_julia, "julia_lj", cutoff) do r, itype, jtype
     coeff = coefficients[itype][jtype]
-    r2inv  = 1.0/rsq
-    r6inv  = r2inv^3
-    lj1 = coeff[1]
-    lj2 = coeff[2]
-    return (r6inv * (lj1*r6inv - lj2))*r2inv
-end
-
-@inline function compute_energy(rsq, itype, jtype)
-    coeff = coefficients[itype][jtype]
-    r2inv  = 1.0/rsq
+    r2inv  = 1.0/(r*r)
     r6inv  = r2inv^3
     lj3 = coeff[3]
     lj4 = coeff[4]
     return (r6inv * (lj3*r6inv - lj4))
 end
 
-# Register external fix
-lj = LAMMPS.PairExternal(lmp_julia, "julia_lj", "zero", compute_force, compute_energy, cutoff)
-
 # Setup atoms
 natoms = 10
 positions = rand(3, 10) .* 5
 for lmp in (lmp_native, lmp_julia)
-    command(lmp, "create_atoms 1 random $natoms 1 NULL")
-    command(lmp, "mass 1 1.0")
+    command(lmp, """
+        create_atoms 1 random $natoms 1 NULL
+        mass 1 1.0
+        compute potential all pe/atom
+        compute virial all stress/atom NULL
+        compute virial_tot all pressure thermo_temp
+    """)
 
     scatter!(lmp, "x", positions)
 
@@ -64,9 +54,20 @@ for lmp in (lmp_native, lmp_julia)
 end
 
 # extract forces
+potential_native = gather(lmp_native, "c_potential", Float64)
+potential_julia = gather(lmp_julia, "c_potential", Float64)
 forces_native = gather(lmp_native, "f", Float64)
 forces_julia = gather(lmp_julia, "f", Float64)
+virial_native = gather(lmp_native, "c_virial", Float64)
+virial_julia = gather(lmp_julia, "c_virial", Float64)
+virial_tot_native = extract_compute(lmp_native, "virial_tot", STYLE_GLOBAL, TYPE_VECTOR)
+virial_tot_julia = extract_compute(lmp_julia, "virial_tot", STYLE_GLOBAL, TYPE_VECTOR)
+energy_native = LAMMPS.API.lammps_get_thermo(lmp_native, "etotal")
+energy_julia = LAMMPS.API.lammps_get_thermo(lmp_julia, "etotal")
 
 @testset "External Pair" begin
-    @test forces_native == forces_julia
+    @test potential_native ≈ potential_julia
+    @test forces_native ≈ forces_julia
+    @test virial_native ≈ virial_julia
+    @test energy_native ≈ energy_julia
 end

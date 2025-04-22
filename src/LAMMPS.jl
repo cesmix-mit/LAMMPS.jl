@@ -1,13 +1,14 @@
 module LAMMPS
 import MPI
-import LinearAlgebra
+using LinearAlgebra
 import OpenBLAS32_jll
+using Tensors
 
 include("api.jl")
 
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
-       scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
+       scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError, FixExternal,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -162,21 +163,23 @@ A full ist of command-line options can be found in the [lammps documentation](ht
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
+    comm::MPI.Comm
     external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
         args = copy(args)
         pushfirst!(args, "lammps")
 
+        if !MPI.Initialized()
+            MPI.Init()
+        end
+
+        if comm === nothing
+            comm = API.lammps_config_has_mpi_support() == 0 ? MPI.COMM_SELF : MPI.COMM_WORLD
+        end
+
         GC.@preserve args begin
-            if comm !== nothing
-                if !MPI.Initialized()
-                    error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
-                end
-                handle = API.lammps_open(length(args), args, comm, C_NULL)
-            else
-                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
-            end
+            handle = API.lammps_open(length(args), args, comm, C_NULL)
         end
 
         if API.lammps_has_error(handle) != 0
@@ -186,7 +189,7 @@ mutable struct LMP
             throw(LAMMPSError(msg))
         end
 
-        this = new(handle, Dict{String, Any}())
+        this = new(handle, comm, Dict{String, Any}())
         finalizer(close!, this)
 
         ver = version(this)

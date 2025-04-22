@@ -400,10 +400,8 @@ LMP(["-screen", "none"]) do lmp
     command(lmp, "boundary p p p")
     command(lmp, "region cell block 0 1 0 1 0 1 units box")
     command(lmp, "create_box 1 cell")
-    command(lmp, "fix julia all external pf/callback 1 1")
-    LAMMPS.FixExternal(lmp, "julia") do fix, timestep, nlocal, nghost, ids, x, fexternal
-       LAMMPS.energy_global!(fix, 0.0)
-       called[] = true
+    LAMMPS.FixExternal(lmp, "julia", "all", 1, 1) do fix
+        called[] = true
     end
     command(lmp, "mass 1 1.0")
     command(lmp, "run 0")
