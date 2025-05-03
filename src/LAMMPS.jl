@@ -2,7 +2,6 @@ module LAMMPS
 import MPI
 import LinearAlgebra
 import OpenBLAS32_jll
-import StaticArrays: SVector
 
 include("api.jl")
 
@@ -498,8 +497,8 @@ function extract_global_datatype(lmp::LMP, name)
 end
 
 struct LammpsBox
-    boxlo::SVector{3, Float64}
-    boxhi::SVector{3, Float64}
+    boxlo::NTuple{3, Float64}
+    boxhi::NTuple{3, Float64}
     xy::Float64
     yz::Float64
     xz::Float64
@@ -513,8 +512,8 @@ end
 Extract simulation box parameters.
 """
 function extract_box(lmp::LMP)
-    boxlo = Ref{SVector{3, Float64}}()
-    boxhi = Ref{SVector{3, Float64}}()
+    boxlo = Ref{NTuple{3, Float64}}()
+    boxhi = Ref{NTuple{3, Float64}}()
     xy = Ref{Float64}()
     yz = Ref{Float64}()
     xz = Ref{Float64}()
@@ -527,13 +526,13 @@ function extract_box(lmp::LMP)
 end
 
 """
-    reset_box(lmp::LMP, boxlo::AbstractVector{<:Real}, boxhi::AbstractVector{<:Real}, xy::Real = 0, yz::Real = 0, xz::Real = 0)
+    reset_box(lmp::LMP, boxlo, boxhi, xy::Real = 0, yz::Real = 0, xz::Real = 0)
 
 Reset simulation box parameters.
 """
-function reset_box(lmp::LMP, boxlo::AbstractVector{<:Real}, boxhi::AbstractVector{<:Real}, xy::Real = 0, yz::Real = 0, xz::Real = 0)
-    _boxlo = SVector{3, Float64}(boxlo)
-    _boxhi = SVector{3, Float64}(boxhi)
+function reset_box(lmp::LMP, boxlo, boxhi, xy::Real = 0, yz::Real = 0, xz::Real = 0)
+    _boxlo = Ref(NTuple{3, Float64}(boxlo))
+    _boxhi = Ref(NTuple{3, Float64}(boxhi))
     @inline API.lammps_reset_box(lmp, _boxlo, _boxhi, xy, yz, xz)
     check(lmp)
 end

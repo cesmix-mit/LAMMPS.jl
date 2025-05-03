@@ -394,16 +394,16 @@ end
         """)
 
         box = extract_box(lmp)
-        @test box.boxlo == [-1, -2, -3]
-        @test box.boxhi == [1, 2, 3]
+        @test box.boxlo == (-1, -2, -3)
+        @test box.boxhi == (1, 2, 3)
         @test box.xy == box.yz == box.xz == 0
         @test box.pflags == (1, 1, 0)
         @test box.boxflag == 0
 
         reset_box(lmp, [0, 0, 0], [1, 1, 1], 1, 2, 3)
         box = extract_box(lmp)
-        @test box.boxlo == [0, 0, 0]
-        @test box.boxhi == [1, 1, 1]
+        @test box.boxlo == (0, 0, 0)
+        @test box.boxhi == (1, 1, 1)
         @test box.xy == 1
         @test box.yz == 2
         @test box.xz == 3
