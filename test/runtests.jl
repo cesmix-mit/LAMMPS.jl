@@ -385,6 +385,34 @@ end
     end
 end
 
+@testset "Extract Box" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            region cell block -1 1 -2 2 -3 3
+            boundary p p f
+            create_box 1 cell
+        """)
+
+        box = extract_box(lmp)
+        @test box.boxlo == [-1, -2, -3]
+        @test box.boxhi == [1, 2, 3]
+        @test box.xy == box.yz == box.xz == 0
+        @test box.pflags == (1, 1, 0)
+        @test box.boxflag == 0
+
+        reset_box(lmp, [0, 0, 0], [1, 1, 1], 1, 2, 3)
+        box = extract_box(lmp)
+        @test box.boxlo == [0, 0, 0]
+        @test box.boxhi == [1, 1, 1]
+        @test box.xy == 1
+        @test box.yz == 2
+        @test box.xz == 3
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
+    end
+end
+
 if !Sys.iswindows()
     @testset "MPI" begin
          @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
