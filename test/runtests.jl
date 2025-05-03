@@ -385,6 +385,12 @@ end
     end
 end
 
+@testset "Image Flags" begin
+    @test encode_image_flags(0, 0, 0) == 537395712
+    @test encode_image_flags((0, 0, 0)) == 537395712
+    @test decode_image_flags(537395712) == (0, 0, 0)
+end
+
 if !Sys.iswindows()
     @testset "MPI" begin
          @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
