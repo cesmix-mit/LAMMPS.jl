@@ -3,6 +3,8 @@ import MPI
 using LinearAlgebra
 import OpenBLAS32_jll
 using Tensors
+import Bumper: @no_escape, @alloc
+import UnsafeArrays: UnsafeArray
 
 include("api.jl")
 
@@ -163,7 +165,6 @@ A full ist of command-line options can be found in the [lammps documentation](ht
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
-    comm::MPI.Comm
     external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
@@ -174,12 +175,12 @@ mutable struct LMP
             MPI.Init()
         end
 
-        if comm === nothing
-            comm = API.lammps_config_has_mpi_support() == 0 ? MPI.COMM_SELF : MPI.COMM_WORLD
-        end
-
         GC.@preserve args begin
-            handle = API.lammps_open(length(args), args, comm, C_NULL)
+            if comm === nothing
+                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
+            else
+                handle = API.lammps_open(length(args), args, comm, C_NULL)
+            end
         end
 
         if API.lammps_has_error(handle) != 0
@@ -189,7 +190,7 @@ mutable struct LMP
             throw(LAMMPSError(msg))
         end
 
-        this = new(handle, comm, Dict{String, Any}())
+        this = new(handle, Dict{String, Any}())
         finalizer(close!, this)
 
         ver = version(this)

@@ -50,11 +50,57 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     return nothing
 end
 
+function set_virial_peratom(fix::FixExternal, virial; set_global=false)
+    @assert eltype(virial) == Float64
+    @assert size(virial, 2) >= fix.nlocal
+    @assert size(virial, 1) == 6 
+    @assert stride(virial, 1) == 1
+
+    @no_escape begin
+        ptrs = @alloc(Ptr{Ptr{Float64}}, fix.nlocal)
+        @inbounds for i in eachindex(ptrs)
+            ptrs[i] = pointer(virial, 6*(i-1)+1)
+        end
+        API.lammps_fix_external_set_virial_peratom(fix.lmp, fix.name, ptrs)
+    end
+
+    @no_escape if set_global
+        virial_global = @alloc(Float64, 6)
+        virial_global .= 0
+        for i in 1:fix.nlocal, j in 1:6
+            @inbounds virial_global[j] += virial[6*(i-1) + j]
+        end
+
+        comm = API.lammps_get_mpi_comm(fix.lmp)
+        if comm != -1
+            MPI.Allreduce!(virial_global, +, comm)
+        end
+
+        API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_global)
+    end
+
+    check(fix.lmp)
+end
+
+function set_energy_peratom(fix::FixExternal, energy; set_global=false)
+    API.lammps_fix_external_set_energy_peratom(fix.lmp, fix.name, energy)
+
+    if set_global
+        energy_global = sum(view(energy, 1:fix.nlocal))
+        comm = API.lammps_get_mpi_comm(fix.lmp)
+        if comm != -1
+            energy_global = MPI.Allreduce(energy_global, +, comm)
+        end
+        API.lammps_fix_external_set_energy_global(fix.lmp, fix.name, energy_global)
+    end
+
+    check(fix.lmp)
+end
+
 function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Float64) where F
     command(lmp, """
         pair_style zero $cutoff nocoeff full
         pair_coeff * *
-        fix $(name)_intermediate all property/atom d_$(name)_energy d2_$(name)_virial 6
     """)
 
     FixExternal(lmp, name, "all", 1, 1) do fix::FixExternal
@@ -62,64 +108,47 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
         nelements = API.lammps_neighlist_num_elements(fix.lmp, idx)
 
         type = LAMMPS.extract_atom(fix.lmp, "type", LAMMPS_INT; with_ghosts=true)
-        x = reinterpret(Vec{3, Float64}, fix.x)
-        force = reinterpret(Vec{3, Float64}, fix.f)
-        energy = extract_atom(fix.lmp, "d_$(fix.name)_energy", LAMMPS_DOUBLE)
+        x = reinterpret(reshape, Vec{3, Float64}, fix.x)
+        force = reinterpret(reshape, Vec{3, Float64}, fix.f)
 
-        virial_void_ptr = API.lammps_extract_atom(fix.lmp, "d2_$(fix.name)_virial")
-        virial_ptr = reinterpret(Ptr{Ptr{Float64}}, virial_void_ptr)
-        virial = _extract(virial_ptr, (Int32(6), nelements))
+        @no_escape begin
+            energy = @alloc(Float64, fix.nlocal)
+            virial = @alloc(Float64, 6, fix.nlocal)
 
-        energy_tally = 0.
-        virial_tally = zero(SymmetricTensor{2,3,Float64,6})
-
-        energy .= 0
-        fix.f .= 0
-        virial .= 0
-
-        for i in 1:nelements
-            iatom, neigh = LAMMPS.neighbors(lmp, idx, i)
-            iatom += 1
-            itype = type[iatom]
-            ipos = x[iatom]
-
-            for jatom in neigh
-                jatom += 1
-                jtype = type[jatom]
-                diff = x[jatom] - ipos
-                r = norm(diff)
-                r > cutoff && continue
-
-                _force, _energy = gradient(r, :all) do r
-                    compute_potential(r, itype, jtype)
+            @inbounds for i in 1:nelements
+                iatom, neigh = LAMMPS.neighbors(lmp, idx, i)
+                iatom += 1
+                itype = type[iatom]
+                ipos = x[iatom]
+    
+                for jatom in neigh
+                    jatom += 1
+                    jtype = type[jatom]
+                    diff = x[jatom] - ipos
+                    r = norm(diff)
+                    r > cutoff && continue
+    
+                    _force, _energy = gradient(r, :all) do r
+                        compute_potential(r, itype, jtype)
+                    end
+    
+                    v = diff / r
+    
+                    energy[iatom] += 0.5 * _energy
+                    force[iatom] += diff * (_force / r)
+    
+                    virial_tens = (-0.5 * _force / r) * symmetric(diff ⊗ diff)
+                    virial[1, iatom] += virial_tens[1,1]
+                    virial[2, iatom] += virial_tens[2,2]
+                    virial[3, iatom] += virial_tens[3,3]
+                    virial[4, iatom] += virial_tens[1,2]
+                    virial[5, iatom] += virial_tens[1,3]
+                    virial[6, iatom] += virial_tens[2,3]
                 end
-
-                v = diff / r
-
-                energy[iatom] += 0.5 * _energy
-                force[iatom] += diff * (_force / r)
-
-                virial_tens = (-0.5 * _force / r) * symmetric(diff ⊗ diff)
-                virial[1, iatom] += virial_tens[1,1]
-                virial[2, iatom] += virial_tens[2,2]
-                virial[3, iatom] += virial_tens[3,3]
-                virial[4, iatom] += virial_tens[1,2]
-                virial[5, iatom] += virial_tens[1,3]
-                virial[6, iatom] += virial_tens[2,3]
-
-                virial_tally += virial_tens
-                energy_tally += 0.5 * _energy
             end
+
+            set_energy_peratom(fix, energy; set_global=true)
+            set_virial_peratom(fix, virial; set_global=true)
         end
-
-        API.lammps_fix_external_set_energy_peratom(fix.lmp, fix.name, energy)
-        API.lammps_fix_external_set_virial_peratom(fix.lmp, fix.name, virial_ptr)
-
-        energy_tally = MPI.Allreduce(energy_tally, +, fix.lmp.comm)
-        virial_tally = SymmetricTensor{2,3,Float64,6}(MPI.Allreduce(virial_tally.data, +, fix.lmp.comm))
-
-        API.lammps_fix_external_set_energy_global(fix.lmp, fix.name, energy_tally)
-        virial_tally2 = Ref((virial_tally[1,1], virial_tally[2,2], virial_tally[3,3], virial_tally[1,2], virial_tally[1,3], virial_tally[2,3]))
-        API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_tally2)
     end
 end
