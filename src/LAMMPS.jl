@@ -8,6 +8,7 @@ include("api.jl")
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
        gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
+       encode_image_flags, decode_image_flags,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -595,6 +596,26 @@ end
 
 function extract_atom_datatype(lmp::LMP, name)
     return API._LMP_DATATYPE_CONST(API.lammps_extract_atom_datatype(lmp, name))
+end
+
+"""
+    encode_image_flags(ix, iy, iz)
+    encode_image_flags(flags)
+
+Encode three integer image flags into a single imageint.
+"""
+encode_image_flags(ix, iy, iz) = API.lammps_encode_image_flags(ix, iy, iz)
+encode_image_flags(flags) = API.lammps_encode_image_flags(flags...)
+
+"""
+    decode_image_flags(image)
+
+Decode a single image flag integer into three regular integers.
+"""
+function decode_image_flags(image)
+    flags = Ref{NTuple{3, Cint}}()
+    @inline API.lammps_decode_image_flags(image, flags)
+    return flags[]
 end
 
 """
