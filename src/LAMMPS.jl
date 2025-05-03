@@ -6,8 +6,8 @@ import OpenBLAS32_jll
 include("api.jl")
 
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
-       extract_setting, gather, gather_bonds, gather_angles, gather_dihedrals, gather_impropers,
-       scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
+       extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
+       gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -494,6 +494,47 @@ end
 
 function extract_global_datatype(lmp::LMP, name)
     return API._LMP_DATATYPE_CONST(API.lammps_extract_global_datatype(lmp, name))
+end
+
+struct LammpsBox
+    boxlo::NTuple{3, Float64}
+    boxhi::NTuple{3, Float64}
+    xy::Float64
+    yz::Float64
+    xz::Float64
+    pflags::NTuple{3, Int32}
+    boxflag::Int32
+end
+
+"""
+    extract_box(lmp::LMP)
+
+Extract simulation box parameters.
+"""
+function extract_box(lmp::LMP)
+    boxlo = Ref{NTuple{3, Float64}}()
+    boxhi = Ref{NTuple{3, Float64}}()
+    xy = Ref{Float64}()
+    yz = Ref{Float64}()
+    xz = Ref{Float64}()
+    pflags = Ref{NTuple{3, Int32}}()
+    boxflag = Ref{Int32}()
+
+    @inline API.lammps_extract_box(lmp, boxlo, boxhi, xy, yz, xz, pflags, boxflag)
+    check(lmp)
+    return LammpsBox(boxlo[], boxhi[], xy[], yz[], xz[], pflags[], boxflag[])
+end
+
+"""
+    reset_box(lmp::LMP, boxlo, boxhi, xy::Real = 0, yz::Real = 0, xz::Real = 0)
+
+Reset simulation box parameters.
+"""
+function reset_box(lmp::LMP, boxlo, boxhi, xy::Real = 0, yz::Real = 0, xz::Real = 0)
+    _boxlo = Ref(NTuple{3, Float64}(boxlo))
+    _boxhi = Ref(NTuple{3, Float64}(boxhi))
+    @inline API.lammps_reset_box(lmp, _boxlo, _boxhi, xy, yz, xz)
+    check(lmp)
 end
 
 """
