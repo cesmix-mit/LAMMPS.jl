@@ -65,7 +65,7 @@ function set_virial_peratom(fix::FixExternal, virial::AbstractVector{SVector{6, 
         comm = API.lammps_get_mpi_comm(fix.lmp)
         GC.@preserve virial_global begin
             if comm != -1
-                buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.DataType(Float64))
+                buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.Datatype(Float64))
                 @inline MPI.Allreduce!(buffer, +, MPI.Comm(comm))
             end
             @inline API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_global)
