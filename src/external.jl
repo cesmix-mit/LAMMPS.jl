@@ -33,8 +33,8 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fix.nlocal = nlocal
 
     nall = extract_setting(fix.lmp, "nall")
-    fix.x = _extract(x, (3, nall))
-    fix.f = _extract(fexternal, (3, nall))
+    fix.x = _extract(x, (Int32(3), nall))
+    fix.f = _extract(fexternal, (Int32(3), nall))
     fix.ids = _extract(ids, nall)
 
     # necessary dynamic
@@ -116,14 +116,11 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
             energy = @alloc(Float64, fix.nlocal)
             virial = @alloc(Float64, 6, fix.nlocal)
 
-            @inbounds for i in 1:nelements
-                iatom, neigh = LAMMPS.neighbors(lmp, idx, i)
-                iatom += 1
+            @inbounds for (iatom, neigh) in pair_neighborlist(fix.lmp, "zero")
                 itype = type[iatom]
                 ipos = x[iatom]
     
                 for jatom in neigh
-                    jatom += 1
                     jtype = type[jatom]
                     diff = x[jatom] - ipos
                     r = norm(diff)
@@ -132,8 +129,6 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
                     _force, _energy = gradient(r, :all) do r
                         compute_potential(r, itype, jtype)
                     end
-    
-                    v = diff / r
     
                     energy[iatom] += 0.5 * _energy
                     force[iatom] += diff * (_force / r)
