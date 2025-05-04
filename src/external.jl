@@ -33,9 +33,8 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     fix.nlocal = nlocal
 
     nall = extract_setting(fix.lmp, "nall")
-    dim = extract_setting(fix.lmp, "dimension")
-    fix.x = _extract(x, (dim, nall))
-    fix.f = _extract(fexternal, (dim, nall))
+    fix.x = _extract(x, (3, nall))
+    fix.f = _extract(fexternal, (3, nall))
     fix.ids = _extract(ids, nall)
 
     # necessary dynamic
@@ -83,6 +82,8 @@ function set_virial_peratom(fix::FixExternal, virial; set_global=false)
 end
 
 function set_energy_peratom(fix::FixExternal, energy; set_global=false)
+    @assert length(energy) >= fix.nlocal
+
     API.lammps_fix_external_set_energy_peratom(fix.lmp, fix.name, energy)
 
     if set_global
