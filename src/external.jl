@@ -72,7 +72,7 @@ function set_virial_peratom(fix::FixExternal, virial; set_global=false)
 
         comm = API.lammps_get_mpi_comm(fix.lmp)
         if comm != -1
-            buffer = MPI.RBuffer(pointer(virial_global), pointer(virial_global), 6, MPI.Datatype(Float64))
+            buffer = MPI.RBuffer(MPI.IN_PlACE, pointer(virial_global), 6, MPI.Datatype(Float64))
             MPI.Allreduce!(buffer, +, MPI.Comm(comm))
         end
 
