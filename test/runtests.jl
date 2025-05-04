@@ -419,6 +419,33 @@ end
     end
 end
 
+@testset "Neighbor lists" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            pair_style zero 1.0
+            pair_coeff * *
+
+            fix runfix all nve
+
+            run 1
+        """)
+
+        neighlist = pair_neighborlist(lmp, "zero")
+        @test length(neighlist) == 27
+        iatom, neihgs = neighlist[1]
+        @test iatom == 1 # account for 1-based indexing
+        @test length(neihgs) == 3
+        @test_throws KeyError pair_neighborlist(lmp, "nonesense")
+    end
+end
+
 if !Sys.iswindows()
     @testset "MPI" begin
          @test success(pipeline(`$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) mpitest.jl`, stderr=stderr, stdout=stdout))
