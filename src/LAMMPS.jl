@@ -1043,30 +1043,30 @@ end
 
 _check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
 
-struct NeighListVec <: AbstractVector{Int32}
+struct NeighListVec <: AbstractVector{Cint}
     numneigh::Int
     neighbors::Ptr{Int32}
 end
 
 function Base.getindex(nle::NeighListVec, i::Integer)
-    @boundscheck 1 <= i <= nle.numneigh || throw(BoundsError(nle, i))
-    return unsafe_load(nle.neighbors, i)+1
+    @boundscheck checkbounds(nle, i)
+    return unsafe_load(nle.neighbors, i)+Cint(1)
 end
 
 Base.size(nle::NeighListVec) = (nle.numneigh,)
 
 struct NeighList <: AbstractVector{Pair{Int32, NeighListVec}}
     lmp::LMP
-    idx::Int
+    idx::Cint
 end
 
 function Base.getindex(nl::NeighList, element::Integer)
-    iatom = Ref{Cint}(-1)
+    iatom = Ref{Cint}()
     numneigh = Ref{Cint}()
     neighbors = Ref{Ptr{Cint}}()
-    API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1 #= 0-based indexing =#, iatom, numneigh, neighbors)
-    iatom[] == -1 && throw(BoundsError(nl, element))
-    return iatom[]+1 => NeighListVec(numneigh[], neighbors[])
+    @inline API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-one(element) #= 0-based indexing =#, iatom, numneigh, neighbors)
+    @boundscheck iatom[] == -1 && throw(BoundsError(nl, element))
+    return iatom[]+Cint(1) => NeighListVec(numneigh[], neighbors[])
 end
 
 Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
