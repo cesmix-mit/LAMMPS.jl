@@ -1074,7 +1074,7 @@ Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
 """
     compute_neighborlist(lmp::LMP, id::String; request=0)
 
-Find index of a neighbor list requested by a compute
+Retrieve neighbor list requested by a compute.
 
 The neighbor list request from a compute is identified by the compute ID and the request ID.
 The request ID is typically 0, but will be > 0 in case a compute has multiple neighbor list requests.
@@ -1091,7 +1091,7 @@ end
 """
     fix_neighborlist(lmp::LMP, id::String; request=0)
 
-Find index of a neighbor list requested by a fix
+Retrieve neighbor list requested by a fix.
 
 The neighbor list request from a fix is identified by the fix ID and the request ID.
 The request ID is typically 0, but will be > 0 in case a fix has multiple neighbor list requests.
