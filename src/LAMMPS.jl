@@ -8,7 +8,7 @@ include("api.jl")
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
        gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
-       encode_image_flags, decode_image_flags,
+       encode_image_flags, decode_image_flags, compute_neighborlist, fix_neighborlist, pair_neighborlist,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -1042,5 +1042,116 @@ function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
 end
 
 _check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
+
+struct NeighListVec <: AbstractVector{Int32}
+    numneigh::Int
+    neighbors::Ptr{Int32}
+end
+
+function Base.getindex(nle::NeighListVec, i::Integer)
+    @boundscheck 1 <= i <= nle.numneigh || throw(BoundsError(nle, i))
+    return unsafe_load(nle.neighbors, i)+1
+end
+
+Base.size(nle::NeighListVec) = (nle.numneigh,)
+
+struct NeighList <: AbstractVector{Pair{Int32, NeighListVec}}
+    lmp::LMP
+    idx::Int
+end
+
+function Base.getindex(nl::NeighList, element::Integer)
+    iatom = Ref{Cint}(-1)
+    numneigh = Ref{Cint}()
+    neighbors = Ref{Ptr{Cint}}()
+    API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-1 #= 0-based indexing =#, iatom, numneigh, neighbors)
+    iatom[] == -1 && throw(BoundsError(nl, element))
+    return iatom[]+1 => NeighListVec(numneigh[], neighbors[])
+end
+
+Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
+
+"""
+    compute_neighborlist(lmp::LMP, id::String; request=0)
+
+Find index of a neighbor list requested by a compute
+
+The neighbor list request from a compute is identified by the compute ID and the request ID.
+The request ID is typically 0, but will be > 0 in case a compute has multiple neighbor list requests.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned from `extract_atom`.
+"""
+function compute_neighborlist(lmp::LMP, id::String; request=0)
+    idx = API.lammps_find_compute_neighlist(lmp, id, request)
+    idx == -1 && throw(KeyError(id))
+    return NeighList(lmp, idx)
+end
+
+"""
+    fix_neighborlist(lmp::LMP, id::String; request=0)
+
+Find index of a neighbor list requested by a fix
+
+The neighbor list request from a fix is identified by the fix ID and the request ID.
+The request ID is typically 0, but will be > 0 in case a fix has multiple neighbor list requests.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned from `extract_atom`.
+"""
+function fix_neighborlist(lmp::LMP, id::String; request=0)
+    idx = API.lammps_find_compute_neighlist(lmp, id, request)
+    idx == -1 && throw(KeyError(id))
+    return NeighList(lmp, idx)
+end
+
+"""
+    pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+
+This function determines which of the available neighbor lists for pair styles matches the given conditions. It first matches the style name. If exact is true the name must match exactly,
+if exact is false, a regular expression or sub-string match is done. If the pair style is hybrid or hybrid/overlay the style is matched against the sub styles instead.
+If a the same pair style is used multiple times as a sub-style, the nsub argument must be > 0 and represents the nth instance of the sub-style (same as for the pair_coeff command, for example).
+In that case nsub=0 will not produce a match and this function will Error.
+
+The final condition to be checked is the request ID (reqid). This will normally be 0, but some pair styles request multiple neighbor lists and set the request ID to a value > 0.
+
+Each neighbor list contains vectors of local indices of neighboring atoms.
+These can be used to index into Arrays returned from `extract_atom`.
+
+## Examples
+```julia
+lmp = LMP()
+
+command(lmp, \"""
+    region cell block 0 3 0 3 0 3
+    create_box 1 cell
+    lattice sc 1
+    create_atoms 1 region cell
+    mass 1 1
+
+    pair_style zero 1.0
+    pair_coeff * *
+
+    run 1
+\""")
+
+x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true)
+
+for (iatom, neighs) in pair_neighborlist(lmp, "zero")
+    for jatom in neighs
+        ix = @view x[:, iatom]
+        jx = @view x[:, jatom]
+
+        println(ix => jx)
+   end
+end
+```
+"""
+function pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
+    idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
+    idx == -1 && throw(KeyError(style))
+    return NeighList(lmp, idx)
+end
+
 
 end # module
