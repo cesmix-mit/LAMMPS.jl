@@ -544,11 +544,11 @@ Since computes may provide multiple kinds of data, it is required to set style a
 | `STYLE_ATOM`              |
 | `STYLE_LOCAL`             |
 
-| valid values for `lmp_type`: | resulting return type:                         |
-| :--------------------------- | :--------------------------------------------- |
-| `TYPE_SCALAR`                | `UnsafeArray{Float64, 0}                       |
-| `TYPE_VECTOR`                | `UnsafeArray{Float64, 1} Vector{Float64}`      |
-| `TYPE_ARRAY`                 | `UnsafeArray{Float64, 2} Matrix{Float64}`      |
+| valid values for `lmp_type`: | resulting return type:   |
+| :--------------------------- | :----------------------- |
+| `TYPE_SCALAR`                | `UnsafeArray{Float64, 0}`|
+| `TYPE_VECTOR`                | `UnsafeArray{Float64, 1}`|
+| `TYPE_ARRAY`                 | `UnsafeArray{Float64, 2}`|
 
 Scalar values get returned as arrays with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
@@ -610,7 +610,7 @@ For other variable styles, their string value is returned.
 
 | valid values for `lmp_variable`: | return type              |
 | :------------------------------- | :----------------------  |
-| `VAR_ATOM`                       | `UnsafeArray{Float64, 1}`|
+| `VAR_ATOM`                       | `Vector{Float64}`(copy)  |
 | `VAR_EQUAL`                      | `Float64`                |
 | `VAR_STRING`                     | `String`                 |
 | `VAR_VECTOR`                     | `UnsafeArray{Float64, 1}`|
