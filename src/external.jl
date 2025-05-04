@@ -106,9 +106,6 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
     """)
 
     FixExternal(lmp, name, "all", 1, 1) do fix::FixExternal
-        idx = API.lammps_find_pair_neighlist(fix.lmp, "zero", true, 0, 0)
-        nelements = API.lammps_neighlist_num_elements(fix.lmp, idx)
-
         type = LAMMPS.extract_atom(fix.lmp, "type", LAMMPS_INT; with_ghosts=true)
         x = reinterpret(reshape, Vec{3, Float64}, fix.x)
         force = reinterpret(reshape, Vec{3, Float64}, fix.f)
@@ -118,9 +115,13 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
             virial = @alloc(Float64, 6, fix.nlocal)
 
             @inbounds for (iatom, neigh) in pair_neighborlist(fix.lmp, "zero")
+                ienergy = 0.
+                iforce = zero(Vec{3, Float64})
+                ivirial = zero(SymmetricTensor{2, 3, Float64, 6})
+
                 itype = type[iatom]
                 ipos = x[iatom]
-    
+
                 for jatom in neigh
                     jtype = type[jatom]
                     diff = x[jatom] - ipos
@@ -131,17 +132,19 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, cutoff::Floa
                         compute_potential(r, itype, jtype)
                     end
     
-                    energy[iatom] += 0.5 * _energy
-                    force[iatom] += diff * (_force / r)
-    
-                    virial_tens = (-0.5 * _force / r) * symmetric(diff ⊗ diff)
-                    virial[1, iatom] += virial_tens[1,1]
-                    virial[2, iatom] += virial_tens[2,2]
-                    virial[3, iatom] += virial_tens[3,3]
-                    virial[4, iatom] += virial_tens[1,2]
-                    virial[5, iatom] += virial_tens[1,3]
-                    virial[6, iatom] += virial_tens[2,3]
+                    ienergy += 0.5 * _energy
+                    iforce += diff * (_force / r)
+                    ivirial += (-0.5 * _force / r) * symmetric(diff ⊗ diff)
                 end
+
+                energy[iatom] = ienergy
+                force[iatom] = iforce
+                virial[1, iatom] += ivirial[1,1]
+                virial[2, iatom] += ivirial[2,2]
+                virial[3, iatom] += ivirial[3,3]
+                virial[4, iatom] += ivirial[1,2]
+                virial[5, iatom] += ivirial[1,3]
+                virial[6, iatom] += ivirial[2,3]
             end
 
             set_energy_peratom(fix, energy; set_global=true)
