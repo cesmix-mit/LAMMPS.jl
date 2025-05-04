@@ -375,6 +375,12 @@ end
     end
 end
 
+@testset "Image Flags" begin
+    @test encode_image_flags(0, 0, 0) == 537395712
+    @test encode_image_flags((0, 0, 0)) == 537395712
+    @test decode_image_flags(537395712) == (0, 0, 0)
+end
+
 @testset "Extract Box" begin
     LMP(["-screen", "none"]) do lmp
         command(lmp, """
