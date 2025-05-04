@@ -594,26 +594,6 @@ function decode_image_flags(image)
 end
 
 """
-    encode_image_flags(ix, iy, iz)
-    encode_image_flags(flags)
-
-Encode three integer image flags into a single imageint.
-"""
-encode_image_flags(ix, iy, iz) = API.lammps_encode_image_flags(ix, iy, iz)
-encode_image_flags(flags) = API.lammps_encode_image_flags(flags...)
-
-"""
-    decode_image_flags(image)
-
-Decode a single image flag integer into three regular integers.
-"""
-function decode_image_flags(image)
-    flags = Ref{NTuple{3, Cint}}()
-    @inline API.lammps_decode_image_flags(image, flags)
-    return flags[]
-end
-
-"""
     extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE)
 
 Extract data provided by a compute command identified by the compute-ID.
