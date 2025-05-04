@@ -395,6 +395,67 @@ end
     end
 end
 
+@testset "Image Flags" begin
+    @test encode_image_flags(0, 0, 0) == 537395712
+    @test encode_image_flags((0, 0, 0)) == 537395712
+    @test decode_image_flags(537395712) == (0, 0, 0)
+end
+
+@testset "Extract Box" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            region cell block -1 1 -2 2 -3 3
+            boundary p p f
+            create_box 1 cell
+        """)
+
+        box = extract_box(lmp)
+        @test box.boxlo == (-1, -2, -3)
+        @test box.boxhi == (1, 2, 3)
+        @test box.xy == box.yz == box.xz == 0
+        @test box.pflags == (1, 1, 0)
+        @test box.boxflag == 0
+
+        reset_box(lmp, [0, 0, 0], [1, 1, 1], 1, 2, 3)
+        box = extract_box(lmp)
+        @test box.boxlo == (0, 0, 0)
+        @test box.boxhi == (1, 1, 1)
+        @test box.xy == 1
+        @test box.yz == 2
+        @test box.xz == 3
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
+    end
+end
+
+@testset "Neighbor lists" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            pair_style zero 1.0
+            pair_coeff * *
+
+            fix runfix all nve
+
+            run 1
+        """)
+
+        neighlist = pair_neighborlist(lmp, "zero")
+        @test length(neighlist) == 27
+        iatom, neihgs = neighlist[1]
+        @test iatom == 1 # account for 1-based indexing
+        @test length(neihgs) == 3
+        @test_throws KeyError pair_neighborlist(lmp, "nonesense")
+    end
+end
+
 LMP(["-screen", "none"]) do lmp
     called = Ref(false)
     command(lmp, "boundary p p p")
