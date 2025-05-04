@@ -2,7 +2,7 @@ module LAMMPS
 import MPI
 using LinearAlgebra
 import OpenBLAS32_jll
-import StaticArrays: SVector, SMatrix, SA
+import StaticArrays: SVector, SMatrix, MVector, SA
 import DifferentiationInterface: AbstractADType, Constant, value_and_derivative
 import Bumper: @no_escape, @alloc
 import UnsafeArrays: UnsafeArray
