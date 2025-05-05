@@ -1,6 +1,6 @@
 using Test
 using LAMMPS
-using MPI
+using MPI; MPI.Init()
 
 @test_logs (:warn,"LAMMPS library path changed, you will need to restart Julia for the change to take effect") LAMMPS.set_library!(LAMMPS.locate())
 
