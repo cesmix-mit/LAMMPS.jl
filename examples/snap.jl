@@ -16,6 +16,7 @@
 #
 # We start off by importing `LAMMPS`.
 
+using MPI; MPI.Init()
 using LAMMPS
 
 const DATA = joinpath(dirname(pathof(LAMMPS)), "..", "examples", "example_GaN_data")

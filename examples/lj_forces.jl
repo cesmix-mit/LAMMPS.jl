@@ -1,3 +1,4 @@
+using MPI; MPI.Init()
 using LAMMPS
 
 lmp = LMP()
