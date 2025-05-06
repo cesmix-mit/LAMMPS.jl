@@ -97,13 +97,6 @@ end
                 boundary p p p
                 region cell block 0 10.0 0 10.0 0 10.0 units box
                 create_box 1 cell
-
-                create_atoms 1 random 10 1 NULL
-                set type 1 charge 2.0
-                mass 1 1.0
-                compute potential all pe/atom
-                compute virial all stress/atom NULL
-                compute virial_tot all pressure thermo_temp
             """)
         end
 
@@ -111,28 +104,27 @@ end
         command(lmp_native, "pair_style coul/cut $cutoff")
         command(lmp_native, "pair_coeff * *")
 
-        command(lmp_julia, "pair_style none\nrun 0")
-
         # Register external fix
         system_properties = @NamedTuple{qqrd2e::Float64}
         atom_properties = @NamedTuple{q::Float64}
-        lj = LAMMPS.PairExternal(lmp_julia, "julia_coul", system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
+        coul = LAMMPS.PairExternal(lmp_julia, "julia_coul", system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
             energy = system.qqrd2e * (iatom.q * jatom.q) / r
             force = system.qqrd2e * (iatom.q * jatom.q) / r^2
             return backend === nothing ? (energy, force) : energy
         end
 
         # Setup atoms
+        natoms = 10
         positions = rand(3, 10) .* 5
         for lmp in (lmp_native, lmp_julia)
-            # command(lmp, """
-            #     create_atoms 1 random $natoms 1 NULL
-            #     set type 1 charge 2.0
-            #     mass 1 1.0
-            #     compute potential all pe/atom
-            #     compute virial all stress/atom NULL
-            #     compute virial_tot all pressure thermo_temp
-            # """)
+            command(lmp, """
+                create_atoms 1 random $natoms 1 NULL
+                set type 1 charge 2.0
+                mass 1 1.0
+                compute potential all pe/atom
+                compute virial all stress/atom NULL
+                compute virial_tot all pressure thermo_temp
+            """)
 
             scatter!(lmp, "x", positions)
 
