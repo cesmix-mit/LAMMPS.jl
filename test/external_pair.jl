@@ -35,7 +35,7 @@ const coefficients = Base.ImmutableDict(
         # Register external fix
         system_properties = @NamedTuple{}
         atom_properties = @NamedTuple{type::Int32}
-        LAMMPS.PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
+        PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
             ε, σ = coefficients[iatom.type][jatom.type]
             r6inv  = (σ/r)^6
             energy = 4ε * (r6inv * (r6inv - 1))
@@ -107,7 +107,7 @@ end
         # Register external fix
         system_properties = @NamedTuple{qqrd2e::Float64}
         atom_properties = @NamedTuple{q::Float64}
-        LAMMPS.PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
+        PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
             energy = system.qqrd2e * (iatom.q * jatom.q) / r
             force = system.qqrd2e * (iatom.q * jatom.q) / r^2
             return backend === nothing ? (energy, force) : energy
