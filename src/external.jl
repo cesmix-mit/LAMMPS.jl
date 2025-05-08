@@ -262,19 +262,112 @@ function Base.getindex(self::ExtractGlobalMultiple{T}) where T
     end |> T
 end
 
+"""
+    InteractionConfig(;
+        system::Type{<:NamedTuple} = @NamedTuple{},
+        atom::Type{<:NamedTuple} = @NamedTuple{type::Int32},
+        backend::Union{Nothing, AbstractADType} = nothing
+    )
+
+A configuration struct that encapsulates the system properties, atom properties, and an optional differentiation backend for use in external pair interactions.
+
+# Fields
+- `system`: A `NamedTuple` type that defines the global system properties to be extracted from LAMMPS. Defaults to an empty `NamedTuple`.
+    A list of the available global properties can be found in the [LAMMPS documentation](https://docs.lammps.org/Library_properties.html#_CPPv421lammps_extract_globalPvPKc)
+- `atom`: A `NamedTuple` type that defines the per-atom properties to be extracted from LAMMPS. Defaults to `@NamedTuple{type::Int32}`.
+    A list of the available atom properties can be found in the [LAMMPS documentation](https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc)
+- `backend`: An optional automatic differentiation backend used to automatically calculate interaction forces from a potential function. Defaults to `nothing`.
+    The backends are defined through the [`ADTypes` package](https://docs.sciml.ai/ADTypes/stable/).
+
+# Example
+```julia
+config = InteractionConfig(
+    system = @NamedTuple{qqrd2e::Float64, boltz::Float64},
+    atom = @NamedTuple{type::Int32, q::Float64},
+    backend = nothing
+)
+```
+"""
+struct InteractionConfig{T<:NamedTuple, U<:NamedTuple, B<:Union{Nothing, AbstractADType}}
+    backend::B
+
+    function InteractionConfig(;
+            system::Type{T} = @NamedTuple{},
+            atom::Type{U} = @NamedTuple{type::Int32},
+            backend::B = nothing,
+        ) where {T<:NamedTuple, U<:NamedTuple, B<:Union{Nothing, AbstractADType}}
+        return new{T, U, B}(backend)
+    end
+end
+
 _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
 
-function PairExternal(compute_potential::F, lmp::LMP, system_properties::Type{T}, atom_properties::Type{U}, cutoff::Float64; backend::Union{Nothing, AbstractADType} = nothing) where {F, T<:NamedTuple, U<:NamedTuple}
+"""
+    PairExternal(compute_potential, lmp::LMP, config::InteractionConfig, cutoff::Float64)
+
+Defines a custom pair style in LAMMPS using a user-provided potential function.
+
+---
+
+`compute_potential` should have the following signature:
+```julia
+function compute_potential(r::Real, system::config.system, iatom::config.atom, jatom::config.atom)
+```
+If no differentiation backend is provided through `config`, the function should return a tuple of the pair energy and force magnitude.
+Otherwise it should return only the energy.
+
+## Examples
+```julia
+# without automatic differentiation
+config = InteractionConfig(
+    system = @NamedTuple{qqrd2e::Float64},
+    atom = @NamedTuple{q::Float64},
+)
+
+PairExternal(lmp, config, 2.5) do r, system, iatom, jatom
+    energy = system.qqrd2e * (iatom.q * jatom.q) / r
+    force = system.qqrd2e * (iatom.q * jatom.q) / r^2
+    return energy, force
+end
+
+# with automatic differentiation
+import ADTypes: AutoEnzyme()
+import Enzyme
+
+config = InteractionConfig(
+    system = @NamedTuple{qqrd2e::Float64},
+    atom = @NamedTuple{q::Float64},
+    backend = AutoEnzyme(),
+)
+
+PairExternal(lmp, config, 2.5) do r, system, iatom, jatom
+    system.qqrd2e * (iatom.q * jatom.q) / r
+end
+```
+
+---
+
+The following commands are executed in LAMMPS during the setup process of `PairExternal`:
+```lammps
+fix pair_julia all external pf/callback 1 1
+pair_style zero <cutoff> nocoeff
+pair_coeff * *
+```
+
+---
+
+"""
+function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{T, U}, cutoff::Float64) where {F, T, U}
     command(lmp, """
         pair_style zero $cutoff nocoeff
         pair_coeff * *
     """)
 
-    system_ptrs = ExtractGlobalMultiple{system_properties}(lmp) # persistent in memory
+    system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
 
     FixExternal(lmp, "pair_julia", "all", 1, 1) do fix::FixExternal
         system = system_ptrs[]
-        atom = ExtractAtomMultiple{atom_properties}(lmp)
+        atom = ExtractAtomMultiple{U}(lmp)
 
         @no_escape begin
             x = reinterpret(reshape, SVector{3, Float64}, fix.x)
@@ -296,10 +389,10 @@ function PairExternal(compute_potential::F, lmp::LMP, system_properties::Type{T}
                     r = norm(diff)
                     r > cutoff && continue
 
-                    if backend === nothing
+                    if config.backend === nothing
                         energy, force_magnitude = compute_potential(r, system, iatom, jatom)
                     else
-                        energy, derivative = value_and_derivative(compute_potential, backend, r, Constant(system), Constant(iatom), Constant(jatom))
+                        energy, derivative = value_and_derivative(compute_potential, config.backend, r, Constant(system), Constant(iatom), Constant(jatom))
                         force_magnitude = -derivative
                     end
 

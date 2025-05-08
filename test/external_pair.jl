@@ -33,9 +33,12 @@ const coefficients = Base.ImmutableDict(
         command(lmp_native, "pair_coeff * * 1 1")
 
         # Register external fix
-        system_properties = @NamedTuple{}
-        atom_properties = @NamedTuple{type::Int32}
-        PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
+        config = InteractionConfig(
+            atom = @NamedTuple{type::Int32},
+            backend = backend,
+        )
+
+        PairExternal(lmp_julia, config, cutoff) do r, system, iatom, jatom
             ε, σ = coefficients[iatom.type][jatom.type]
             r6inv  = (σ/r)^6
             energy = 4ε * (r6inv * (r6inv - 1))
@@ -104,10 +107,13 @@ end
         command(lmp_native, "pair_style coul/cut $cutoff")
         command(lmp_native, "pair_coeff * *")
 
-        # Register external fix
-        system_properties = @NamedTuple{qqrd2e::Float64}
-        atom_properties = @NamedTuple{q::Float64}
-        PairExternal(lmp_julia, system_properties, atom_properties, cutoff; backend) do r, system, iatom, jatom
+        config = InteractionConfig(
+            system = @NamedTuple{qqrd2e::Float64},
+            atom = @NamedTuple{q::Float64},
+            backend = backend,
+        )
+
+        PairExternal(lmp_julia, config, cutoff) do r, system, iatom, jatom
             energy = system.qqrd2e * (iatom.q * jatom.q) / r
             force = system.qqrd2e * (iatom.q * jatom.q) / r^2
             return backend === nothing ? (energy, force) : energy
