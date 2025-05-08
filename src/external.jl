@@ -297,7 +297,7 @@ function PairExternal(compute_potential::F, lmp::LMP, system_properties::Type{T}
                     r > cutoff && continue
 
                     if backend === nothing
-                        energy, force_magnitude,  = compute_potential(r, system, iatom, jatom)
+                        energy, force_magnitude = compute_potential(r, system, iatom, jatom)
                     else
                         energy, derivative = value_and_derivative(compute_potential, backend, r, Constant(system), Constant(iatom), Constant(jatom))
                         force_magnitude = -derivative
