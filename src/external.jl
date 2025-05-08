@@ -222,7 +222,7 @@ _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
 
 function PairExternal(compute_potential::F, lmp::LMP, name::String, system_properties::Type{T}, atom_properties::Type{U}, cutoff::Float64; backend::Union{Nothing, AbstractADType} = nothing) where {F, T<:NamedTuple, U<:NamedTuple}
     command(lmp, """
-        pair_style zero $cutoff nocoeff full
+        pair_style zero $cutoff nocoeff
         pair_coeff * *
     """)
 
@@ -231,18 +231,18 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, system_prope
     FixExternal(lmp, name, "all", 1, 1) do fix::FixExternal
         system = system_ptrs[]
         atom = ExtractAtomMultiple{atom_properties}(lmp)
-        x = reinterpret(reshape, SVector{3, Float64}, fix.x)
-        force = reinterpret(reshape, SVector{3, Float64}, fix.f)
 
         @no_escape begin
-            energy = @alloc(Float64, fix.nlocal)
-            virial = @alloc(SVector{6, Float64}, fix.nlocal)
+            x = reinterpret(reshape, SVector{3, Float64}, fix.x)
+            e = @alloc(Float64, fix.nlocal)
+            f = reinterpret(reshape, SVector{3, Float64}, fix.f)
+            v = @alloc(SVector{6, Float64}, fix.nlocal)
+
+            fill!(e, zero(eltype(e)))
+            fill!(f, zero(eltype(f)))
+            fill!(v, zero(eltype(v)))
 
             @inbounds for (i, neigh) in pair_neighborlist(fix.lmp, "zero")
-                ienergy = 0.
-                iforce = zero(SVector{3, Float64})
-                ivirial = zero(SVector{6, Float64})
-
                 iatom = atom[i]
                 ipos = x[i]
 
@@ -253,24 +253,29 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, system_prope
                     r > cutoff && continue
 
                     if backend === nothing
-                        _energy, _force,  = compute_potential(r, system, iatom, jatom)
+                        energy, force_magnitude,  = compute_potential(r, system, iatom, jatom)
                     else
-                        _energy, _derivative = value_and_derivative(compute_potential, backend, r, Constant(system), Constant(iatom), Constant(jatom))
-                        _force = -_derivative
+                        energy, derivative = value_and_derivative(compute_potential, backend, r, Constant(system), Constant(iatom), Constant(jatom))
+                        force_magnitude = -derivative
                     end
 
-                    ienergy += 0.5 * _energy
-                    iforce += diff * (_force / r)
-                    ivirial += (0.5 * _force / r) * _dott(diff)
-                end
+                    force = diff * (force_magnitude / r)
+                    virial = _dott(diff) * (force_magnitude / r)
 
-                energy[i] = ienergy
-                force[i] = iforce
-                virial[i] = ivirial
+                    e[i] += 0.5 * energy
+                    f[i] += force
+                    v[i] += 0.5 * virial
+
+                    if j <= fix.nlocal
+                        e[j] += 0.5 * energy
+                        f[j] -= force
+                        v[j] += 0.5 * virial
+                    end
+                end
             end
 
-            set_energy_peratom(fix, energy; set_global=true)
-            set_virial_peratom(fix, virial; set_global=true)
+            set_energy_peratom(fix, e; set_global=true)
+            set_virial_peratom(fix, v; set_global=true)
         end
     end
 end
