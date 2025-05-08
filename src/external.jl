@@ -220,7 +220,7 @@ end
 
 _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
 
-function PairExternal(compute_potential::F, lmp::LMP, name::String, system_properties::Type{T}, atom_properties::Type{U}, cutoff::Float64; backend::Union{Nothing, AbstractADType} = nothing) where {F, T<:NamedTuple, U<:NamedTuple}
+function PairExternal(compute_potential::F, lmp::LMP, system_properties::Type{T}, atom_properties::Type{U}, cutoff::Float64; backend::Union{Nothing, AbstractADType} = nothing) where {F, T<:NamedTuple, U<:NamedTuple}
     command(lmp, """
         pair_style zero $cutoff nocoeff
         pair_coeff * *
@@ -228,7 +228,7 @@ function PairExternal(compute_potential::F, lmp::LMP, name::String, system_prope
 
     system_ptrs = ExtractGlobalMultiple{system_properties}(lmp) # persistent in memory
 
-    FixExternal(lmp, name, "all", 1, 1) do fix::FixExternal
+    FixExternal(lmp, "pair_julia", "all", 1, 1) do fix::FixExternal
         system = system_ptrs[]
         atom = ExtractAtomMultiple{atom_properties}(lmp)
 
