@@ -6,13 +6,17 @@ mutable struct FixExternal
     const callback
     timestep::Int
     nlocal::Int
-    ids::Union{Nothing, Vector{Cint}}
-    x::Union{Nothing, Matrix{Float64}}
-    f::Union{Nothing, Matrix{Float64}}
+    ids::UnsafeArray{Int32, 1}
+    x::UnsafeArray{Float64, 2}
+    f::UnsafeArray{Float64, 2}
 
     function FixExternal(callback, lmp::LMP, name::String, group::String, ncall::Int, napply::Int)
         command(lmp, "fix $name $group external pf/callback $ncall $napply")
-        this = new(lmp, name, callback, 0, 0, nothing, nothing, nothing)
+        this = new(lmp, name, callback, 0, 0,
+            UnsafeArray(Ptr{Int32}(C_NULL), (0, )),
+            UnsafeArray(Ptr{Float64}(C_NULL), (3, 0)), 
+            UnsafeArray(Ptr{Float64}(C_NULL), (3, 0))
+        )
         lmp.external_fixes[name] = this # preserves pair globally
 
         ctx = Base.pointer_from_objref(this)
@@ -42,9 +46,10 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
 
     fix.timestep = 0
     fix.nlocal = 0
-    fix.x = nothing
-    fix.f = nothing
-    fix.ids = nothing
+
+    fix.ids = UnsafeArray(Ptr{Int32}(C_NULL), (0, ))
+    fix.x = UnsafeArray(Ptr{Float64}(C_NULL), (3, 0))
+    fix.f = UnsafeArray(Ptr{Float64}(C_NULL), (3, 0))
 
     return nothing
 end
