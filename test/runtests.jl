@@ -1,6 +1,7 @@
 using Test
 using LAMMPS
 using MPI
+using UnsafeArrays
 
 @test_logs (:warn,"LAMMPS library path changed, you will need to restart Julia for the change to take effect") LAMMPS.set_library!(LAMMPS.locate())
 
@@ -36,16 +37,6 @@ end
         @test extract_global(lmp, "boxhi", LAMMPS_DOUBLE) == [1, 2, 3]
         @test extract_global(lmp, "nlocal", LAMMPS_INT)[] == extract_setting(lmp, "nlocal") == 0
 
-        with_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
-        with_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=true)
-
-        @test pointer(with_copy1) != pointer(with_copy2)
-
-        without_copy1 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
-        without_copy2 = extract_global(lmp, "periodicity", LAMMPS_INT, copy=false)
-
-        @test pointer(with_copy1) != pointer(with_copy2)
-
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
@@ -62,7 +53,7 @@ end
             mass 1 1
         """)
 
-        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa  Vector{Float64}
+        @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) isa UnsafeArray{Float64, 1}
         @test extract_atom(lmp, "mass", LAMMPS_DOUBLE) == [1]
 
         x1 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D) 
@@ -71,7 +62,7 @@ end
         x2 = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true) 
         @test size(x2) == (3, 27)
 
-        @test extract_atom(lmp, "image", LAMMPS_INT) isa Vector{Int32}
+        @test extract_atom(lmp, "image", LAMMPS_INT) isa UnsafeArray{Int32, 1}
 
         @test_throws ErrorException extract_atom(lmp, "v", LAMMPS_DOUBLE)
 
@@ -105,7 +96,7 @@ end
         @test length(x_var) == 10
         @test x_var == x[1, :]
         press = extract_variable(lmp, "var4", VAR_VECTOR)
-        @test press isa Vector{Float64}
+        @test press isa UnsafeArray{Float64, 1}
 
         x_var_group = extract_variable(lmp, "var3", VAR_ATOM, "odd")
         in_group = BitVector((1, 0, 1, 0, 1, 0, 1, 0, 0, 0))
@@ -253,8 +244,7 @@ end
 
         @test extract_compute(lmp, "pos", STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
 
-        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
-        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
+        extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR)[3] = 3
 
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_SCALAR) == [0.0]
         @test extract_compute(lmp, "thermo_temp", STYLE_GLOBAL, TYPE_VECTOR) == [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]

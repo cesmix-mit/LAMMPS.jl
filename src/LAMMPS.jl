@@ -2,6 +2,7 @@ module LAMMPS
 import MPI
 import LinearAlgebra
 import OpenBLAS32_jll
+import UnsafeArrays: UnsafeArray
 
 include("api.jl")
 
@@ -365,42 +366,20 @@ function _string(ptr::Ptr)
     return Base.unsafe_string(ptr)
 end
 
-function _extract(ptr::Ptr{<:Real}, shape::Integer; copy=false, own=false)
+function _extract(ptr::Ptr{<:Real})
     ptr == C_NULL && error("Wrapping NULL-pointer!")
-    result = Base.unsafe_wrap(Array, ptr, shape; own=false)
-
-    if own && copy
-        result_copy = Base.copy(result)
-        API.lammps_free(result)
-        return result_copy
-    end
-
-    if own
-        @static if VERSION >= v"1.11-dev"
-            finalizer(API.lammps_free, result.ref.mem)
-        else
-            finalizer(API.lammps_free, result)
-        end
-    end
-
-    return copy ? Base.copy(result) : result
+    return UnsafeArray(ptr, ())
 end
 
-function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}; copy=false) where T
-    # The `own` kwarg is not implemented for 2D data, as this is currently not used anywhere
-
+function _extract(ptr::Ptr{<:Real}, shape::Integer)
     ptr == C_NULL && error("Wrapping NULL-pointer!")
+    return UnsafeArray(ptr, Tuple{Int}(shape))
+end
 
-    prod(shape) == 0 && return Matrix{T}(undef, shape) # There is no data that can be wrapped
-
-    # TODO: implement a debug mode to do this assert
-    # pointers = Base.unsafe_wrap(Array, ptr, ndata)
-    # @assert all(diff(pointers) .== count*sizeof(T))
-
-    # If the pointers are evenly spaced, we can simply use the first pointer to wrap our matrix.
-    first_pointer = unsafe_load(ptr)
-    result = Base.unsafe_wrap(Array, first_pointer, shape; own=false)
-    return copy ? Base.copy(result) : result
+function _extract(ptr::Ptr{<:Ptr{T}}, shape::NTuple{2}) where T
+    ptr == C_NULL && error("Wrapping NULL-pointer!")
+    first_pointer::Ptr{T} = prod(shape) == 0 ? C_NULL : unsafe_load(ptr)
+    return UnsafeArray(first_pointer, Int.(shape))
 end
 
 function _reinterpret(T::_LMP_DATATYPE, ptr::Ptr)
@@ -442,26 +421,23 @@ function extract_setting(lmp::LMP, name::String)::Int32
 end
 
 """
-    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+    extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE)
 
 Extract a global property from a LAMMPS instance.
 
 | valid values for `lmp_type`: | resulting return type:    |
 | :--------------------------- | :------------------------ |
-| `LAMMPS_INT`                 | `Vector{Int32}`           |
-| `LAMMPS_INT_2D`              | `Matrix{Int32}`           |
-| `LAMMPS_DOUBLE`              | `Vector{Float64}`         |
-| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`         |
-| `LAMMPS_INT64`               | `Vector{Int64}`           |
-| `LAMMPS_INT64_2D`            | `Matrix{Int64}`           |
-| `LAMMPS_STRING`              | `String` (always a copy) |
+| `LAMMPS_INT`                 | `UnsafeArray{Int32, 1}`   |
+| `LAMMPS_DOUBLE`              | `UnsafeArray{Float64, 1}` |
+| `LAMMPS_INT64`               | `UnsafeArray{Int64, 1}`   |
+| `LAMMPS_STRING`              | `String`                  |
 
 Scalar values get returned as a vector with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
 
 !!! info
     Closing the LAMMPS instance or issuing a clear command after calling this method
-    will result in the returned data becoming invalid. To prevent this, set `copy=true`.
+    will result in the returned data becoming invalid. To prevent this, copy the returned data.
 
 !!! warning
     Modifying the data through `extract_global` may lead to inconsistent internal data and thus may cause failures or crashes or bogus simulations.
@@ -470,7 +446,7 @@ modify the internal state of the LAMMPS instance even if the data is scalar.
 
 A full list of global variables can be found in the [lammps documentation](https://docs.lammps.org/Library_properties.html).
 """
-function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::Bool=false)
+function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE)
     void_ptr = API.lammps_extract_global(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown global variable $name"))
 
@@ -490,7 +466,7 @@ function extract_global(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy::B
         length = 1
     end
 
-    return _extract(ptr, length; copy=copy)
+    return _extract(ptr, length)
 end
 
 function extract_global_datatype(lmp::LMP, name)
@@ -539,32 +515,31 @@ function reset_box(lmp::LMP, boxlo, boxhi, xy::Real = 0, yz::Real = 0, xz::Real 
 end
 
 """
-    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
+    extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; with_ghosts=false)
 
 Extract per-atom data from the lammps instance.
 
-| valid values for `lmp_type`: | resulting return type: |
-| :--------------------------- | :--------------------- |
-| `LAMMPS_INT`                 | `Vector{Int32}`        |
-| `LAMMPS_INT_2D`              | `Matrix{Int32}`        |
-| `LAMMPS_DOUBLE`              | `Vector{Float64}`      |
-| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`      |
-| `LAMMPS_INT64`               | `Vector{Int64}`        |
-| `LAMMPS_INT64_2D`            | `Matrix{Int64}`        |
+| valid values for `lmp_type`: | resulting return type:   |
+| :--------------------------- | :----------------------- |
+| `LAMMPS_INT`                 | `UnsafeArray{Int32, 1}`  |
+| `LAMMPS_INT_2D`              | `UnsafeArray{Int32, 2}`  |
+| `LAMMPS_DOUBLE`              | `UnsafeArray{Float64, 1}`|
+| `LAMMPS_DOUBLE_2D`           | `UnsafeArray{Float64, 2}`|
+| `LAMMPS_INT64`               | `UnsafeArray{Int64, 1}`  |
+| `LAMMPS_INT64_2D`            | `UnsafeArray{Int64, 2}`  |
 
 !!! info
     The returned data may become invalid if a re-neighboring operation
     is triggered at any point after calling this method. If this has happened,
     trying to read from this data will likely cause julia to crash.
-    To prevent this, set `copy=true`.
+    To prevent this, copy the returned data
 
 A table with suported name keywords can be found in the [lammps documentation](https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc).
 
 ## Arguments
-- `copy`: determines whether lammps internal memory is used or if a copy is made.
 - `with_ghosts`: Determines wheter entries for ghost atoms are included. This is ignored for "mass", or when there is no ghost atom data available.
 """
-function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=false, with_ghosts=false)
+function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; with_ghosts=false)
     void_ptr = API.lammps_extract_atom(lmp, name)
     void_ptr == C_NULL && throw(KeyError("Unknown per-atom variable $name"))
 
@@ -577,7 +552,7 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
     if name == "mass"
         length = extract_global(lmp, "ntypes", LAMMPS_INT)[]
         ptr += sizeof(eltype(ptr)) # Scarry pointer arithemtic; The first entry in the array is unused
-        return _extract(ptr, length; copy=copy)
+        return _extract(ptr, length)
     end
 
     length = if with_ghosts
@@ -588,10 +563,10 @@ function extract_atom(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE; copy=fals
 
     if _is_2D_datatype(lmp_type)
         count = API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
-        return _extract(ptr, (count, length); copy=copy)
+        return _extract(ptr, (count, length))
     end
 
-    return _extract(ptr, length; copy=copy)
+    return _extract(ptr, length)
 end
 
 function extract_atom_datatype(lmp::LMP, name)
@@ -619,7 +594,7 @@ function decode_image_flags(image)
 end
 
 """
-    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=true)
+    extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE)
 
 Extract data provided by a compute command identified by the compute-ID.
 Computes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
@@ -631,48 +606,41 @@ Since computes may provide multiple kinds of data, it is required to set style a
 | `STYLE_ATOM`              |
 | `STYLE_LOCAL`             |
 
-| valid values for `lmp_type`: | resulting return type: |
-| :--------------------------- | :--------------------- |
-| `TYPE_SCALAR`                | `Vector{Float64}`      |
-| `TYPE_VECTOR`                | `Vector{Float64}`      |
-| `TYPE_ARRAY`                 | `Matrix{Float64}`      |
-| `SIZE_VECTOR`                | `Vector{Int32}`        |
-| `SIZE_COLS`                  | `Vector{Int32}`        |
-| `SIZE_ROWS`                  | `Vector{Int32}`        |
+| valid values for `lmp_type`: | resulting return type:   |
+| :--------------------------- | :----------------------- |
+| `TYPE_SCALAR`                | `UnsafeArray{Float64, 0}`|
+| `TYPE_VECTOR`                | `UnsafeArray{Float64, 1}`|
+| `TYPE_ARRAY`                 | `UnsafeArray{Float64, 2}`|
 
-Scalar values get returned as a vector with a single element. This way it's possible to
+Scalar values get returned as arrays with a single element. This way it's possible to
 modify the internal state of the LAMMPS instance even if the data is scalar.
 
 !!! info
     The returned data may become invalid as soon as another LAMMPS command has been issued at any point after calling this method.
     If this has happened, trying to read from this data will likely cause julia to crash.
-    To prevent this, set `copy=true`.
+    To prevent this, copy the returned data.
 
 # Examples
 
 ```julia
 LMP(["-screen", "none"]) do lmp
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=true)[2] = 2
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR, copy=false)[3] = 3
-
     extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_SCALAR) |> println # [0.0]
-    extract_compute(lmp, "thermo_temp", LMP_STYLE_GLOBAL, TYPE_VECTOR) |> println # [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
 end
 ```
 """
-function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE; copy::Bool=false)
+function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE)
     void_ptr = API.lammps_extract_compute(lmp, name, style, get_enum(lmp_type))
     check(lmp)
 
     # `lmp_type in (SIZE_COLS, SIZE_ROWS, SIZE_VECTOR)` causes type instability for some reason
     if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
         ptr = _reinterpret(LAMMPS_INT, void_ptr)
-        return _extract(ptr, 1; copy=copy)
+        return _extract(ptr, 1)
     end
 
     if lmp_type == TYPE_SCALAR
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return _extract(ptr, 1; copy=copy)
+        return _extract(ptr, 1)
     end
 
     if lmp_type == TYPE_VECTOR
@@ -681,7 +649,7 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
             extract_compute(lmp, name, style, SIZE_VECTOR)[]
 
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return  _extract(ptr, ndata; copy=copy)
+        return  _extract(ptr, ndata)
     end
 
     ndata = (style == STYLE_ATOM) ?
@@ -691,36 +659,29 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
     count = extract_compute(lmp, name, style, SIZE_COLS)[]
     ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
 
-    return _extract(ptr, (count, ndata); copy=copy)
+    return _extract(ptr, (count, ndata))
 end
 
 """
-    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
+    extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
 a `vector`-style variable, or an `atom`-style variable, the variable is evaluated and the corresponding value(s) returned.
 Variables of style `internal` are compatible with `equal`-style variables, if they return a numeric value.
 For other variable styles, their string value is returned.
 
-| valid values for `lmp_variable`: | return type       |
-| :------------------------------- | :---------------  |
-| `VAR_ATOM`                       | `Vector{Float64}` |
-| `VAR_EQUAL`                      | `Float64`         |
-| `VAR_STRING`                     | `String`          |
-| `VAR_VECTOR`                     | `Vector{Float64}` |
-
-the kwarg `copy` determies wheter a copy of the underlying data is made.
-`copy` is only aplicable for `VAR_VECTOR` and `VAR_ATOM`. For all other variable types, a copy will be made regardless.
-The underlying LAMMPS API call for `VAR_ATOM` internally allways creates a copy of the data. As the memory for this gets allocated by LAMMPS instead of julia,
-it needs to be dereferenced using `LAMMPS.API.lammps_free` instead of through the garbage collector. 
-If `copy=false` this gets acieved by registering `LAMMPS.API.lammps_free` as a finalizer for the returned data.
-Alternatively, setting `copy=true` will instead create a new copy of the data. The lammps allocated block of memory will then be freed immediately.
+| valid values for `lmp_variable`: | return type              |
+| :------------------------------- | :----------------------  |
+| `VAR_ATOM`                       | `Vector{Float64}`(copy)  |
+| `VAR_EQUAL`                      | `Float64`                |
+| `VAR_STRING`                     | `String`                 |
+| `VAR_VECTOR`                     | `UnsafeArray{Float64, 1}`|
 
 the kwarg `group` determines for which atoms the variable will be extracted. It's only aplicable for
 `VAR_ATOM` and will cause an error if used for other variable types. The entires for all atoms not in the group
 will be zeroed out. By default, all atoms will be extracted.
 """
-function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing; copy::Bool=false)
+function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, group::Union{String, Nothing}=nothing)
     lmp_variable != VAR_ATOM && !isnothing(group) && throw(ArgumentError("the group parameter is only supported for per atom variables!"))
 
     if isnothing(group)
@@ -758,14 +719,15 @@ function extract_variable(lmp::LMP, name::String, lmp_variable::_LMP_VARIABLE, g
         API.lammps_free(ndata_ptr)
 
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
-        return _extract(ptr, ndata; copy=copy)
+        return _extract(ptr, ndata)
     end
 
     if lmp_variable == VAR_ATOM
         ndata = extract_setting(lmp, "nlocal")
         ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
-        # lammps expects us to take ownership of the data
-        return _extract(ptr, ndata; copy=copy, own=true)
+        result = copy(_extract(ptr, ndata))
+        LAMMPS.API.lammps_free(ptr) # lammps expects us to take ownership of the data
+        return result
     end
 
     ptr = _reinterpret(LAMMPS_STRING, void_ptr)
