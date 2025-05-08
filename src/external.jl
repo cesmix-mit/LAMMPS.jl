@@ -140,7 +140,6 @@ struct ExtractAtomMultiple{T<:NamedTuple, P} <: AbstractVector{T}
             _check_atom_ghost(lmp, name, nall)
             if name === :mass
                 type_ptr::Ptr{Int32} = API.lammps_extract_atom(lmp, :type)
-                ntypes = extract_setting(lmp, "ntypes")
                 (type_ptr, Ptr{type}(void_ptr))
             elseif type<:Real
                 Ptr{type}(void_ptr)
@@ -149,7 +148,7 @@ struct ExtractAtomMultiple{T<:NamedTuple, P} <: AbstractVector{T}
             else
                 unsafe_load(Ptr{Ptr{type}}(void_ptr))
             end
-        end |> NamedTuple{fieldnames(T)}
+        end
         return new{T, typeof(ptrs)}(ptrs, nall)
     end
 end
@@ -163,7 +162,7 @@ function Base.getindex(self::ExtractAtomMultiple{T}, i::Integer) where T
             return unsafe_load(ptr[2], type+1)
         end
         unsafe_load(ptr, i)
-    end
+    end |> T
 end
 
 function _check_global_datatype(lmp, name, T)
@@ -203,16 +202,15 @@ struct ExtractGlobalMultiple{T<:NamedTuple, P}
             else
                 Ptr{type}(void_ptr)
             end
-        end |> NamedTuple{fieldnames(T)}
+        end
         return new{T, typeof(ptrs)}(ptrs)
     end
 end
 
-function Base.getindex(self::ExtractGlobalMultiple)
+function Base.getindex(self::ExtractGlobalMultiple{T}) where T
     map(self.ptrs) do ptr
-        ptr isa Ptr{Cchar} && return unsafe_storing(ptr)
-        return unsafe_load(ptr)
-    end
+        ptr isa Ptr{Cchar} ? unsafe_string(ptr) : unsafe_load(ptr)
+    end |> T
 end
 
 _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
