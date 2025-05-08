@@ -1,9 +1,44 @@
 function fix_external_callback end
 
+"""
+    FixExternal(callback, lmp::LMP, name::String, group::String, ncall::Int, napply::Int)
+
+Creates a fix in lammps that calls a Julia function `callback` every `ncall` during the simulation.
+
+---
+
+The following command is executed in LAMMPS when `FixExternal` is called in order to setup the fix:
+```lammps
+fix <name> <group> external pf/callback <ncall> <napply>
+```
+
+---
+
+The `FixExternal` object gets passed to the `callback` function, it contains the parameters passed to `FixExternal` as fields:
+- `lmp::LMP`: The LAMMPS object.
+- `name::String`: The name of the fix.
+- `group::String`: The group of atoms to which the fix is applied.
+- `ncall::Int`: The number of timesteps between calls to the callback function.
+- `napply::Int`: The number of times the callback function is applied to the atoms in the group.
+Additionally, the following fields are set by the callback function:
+- `timestep::Int`: The current timestep of the simulation.
+- `nlocal::Int`: The number of local atoms on the MPI rank.
+- `ids::UnsafeArray{Int32, 1}`: The IDs of the local atoms in an `nall`-element Vector.
+- `x::UnsafeArray{Float64, 2}`: The positions of the local atoms in a (3 × `nall`) Matrix.
+- `f::UnsafeArray{Float64, 2}`: The forces on the local atoms in a (3 × `nlocal`) Matrix.
+These values are only valid during the callback execution and should *not* be used outside of it, as they refer directly to LAMMPS internal memory.
+
+Here, the intention is for the callback to write forces to the `f` field, which will be applied to the atoms in the group every `napply` timesteps.
+`f` is *not* zeroed before the callback is called, so the forces from previous calls are preserved.
+"""
 mutable struct FixExternal
+    const callback
     const lmp::LMP
     const name::String
-    const callback
+    const group::String
+    const ncall::Int
+    const napply::Int
+    # The following fields are set by the callback function
     timestep::Int
     nlocal::Int
     ids::UnsafeArray{Int32, 1}
@@ -12,7 +47,7 @@ mutable struct FixExternal
 
     function FixExternal(callback, lmp::LMP, name::String, group::String, ncall::Int, napply::Int)
         command(lmp, "fix $name $group external pf/callback $ncall $napply")
-        this = new(lmp, name, callback, 0, 0,
+        this = new(callback, lmp, name, group, ncall, napply,  0, 0,
             UnsafeArray(Ptr{Int32}(C_NULL), (0, )),
             UnsafeArray(Ptr{Float64}(C_NULL), (3, 0)), 
             UnsafeArray(Ptr{Float64}(C_NULL), (3, 0))
@@ -38,7 +73,7 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
 
     nall = extract_setting(fix.lmp, "nall")
     fix.x = _extract(x, (Int32(3), nall))
-    fix.f = _extract(fexternal, (Int32(3), nall))
+    fix.f = _extract(fexternal, (Int32(3), nlocal))
     fix.ids = _extract(ids, nall)
 
     # necessary dynamic
@@ -54,6 +89,15 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
     return nothing
 end
 
+"""
+    set_virial_peratom(fix::FixExternal, virial::AbstractVector{SVector{6, Float64}}; set_global=false)
+    set_virial_peratom(fix::FixExternal, virial::AbstractMatrix{Float64}; set_global=false)
+
+Sets the per-atom virial stress tensor for the atoms in the fix.
+The virial tensor is represented as a 6-component symmetric tensor in the order: 
+  `[xx, yy, zz, xy, xz, yz]`.
+This is intended to only be used during the callback function of a `FixExternal`.
+"""
 function set_virial_peratom(fix::FixExternal, virial::AbstractVector{SVector{6, Float64}}; set_global=false)
     @assert length(virial) >= fix.nlocal
 

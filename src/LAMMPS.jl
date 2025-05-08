@@ -12,7 +12,7 @@ include("api.jl")
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
        gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError, FixExternal,
-       PairExternal,
+       PairExternal, set_energy_peratom, set_virial_peratom,
        encode_image_flags, decode_image_flags, compute_neighborlist, fix_neighborlist, pair_neighborlist,
        get_mpi_comm,
 
