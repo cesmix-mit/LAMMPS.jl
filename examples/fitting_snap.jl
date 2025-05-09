@@ -25,6 +25,7 @@
 #
 # We start off by importing the necessary packages
 
+using MPI; MPI.Init()
 using LAMMPS
 using LinearAlgebra: norm, pinv
 using Printf

@@ -1,15 +1,20 @@
 module LAMMPS
 import MPI
-import LinearAlgebra
+using LinearAlgebra
 import OpenBLAS32_jll
+import StaticArrays: SVector, SMatrix, MVector, SA
+import DifferentiationInterface: AbstractADType, Constant, value_and_derivative
+import Bumper: @no_escape, @alloc
 import UnsafeArrays: UnsafeArray
 
 include("api.jl")
 
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
        extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
-       gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError,
+       gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError, FixExternal,
+       PairExternal, set_energy!, set_virial!, InteractionConfig,
        encode_image_flags, decode_image_flags, compute_neighborlist, fix_neighborlist, pair_neighborlist,
+       get_mpi_comm,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,
@@ -156,7 +161,7 @@ function set_library!(path)
 end
 
 """
-    LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
+    LMP(args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
 
@@ -164,19 +169,20 @@ A full ist of command-line options can be found in the [lammps documentation](ht
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
+    external_fixes::Dict{String, Any}
 
-    function LMP(args::Vector{String}=String[], comm::Union{Nothing, MPI.Comm}=nothing)
+    function LMP(args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
         args = copy(args)
         pushfirst!(args, "lammps")
 
         GC.@preserve args begin
-            if comm !== nothing
+            if API.lammps_config_has_mpi_support() == 0
+                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
+            else
                 if !MPI.Initialized()
                     error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
                 end
                 handle = API.lammps_open(length(args), args, comm, C_NULL)
-            else
-                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
             end
         end
 
@@ -187,7 +193,7 @@ mutable struct LMP
             throw(LAMMPSError(msg))
         end
 
-        this = new(handle)
+        this = new(handle, Dict{String, Any}())
         finalizer(close!, this)
 
         ver = version(this)
@@ -214,16 +220,18 @@ Shutdown a LAMMPS instance.
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
-       API.lammps_close(handle)
+        empty!(lmp.external_fixes)
+        API.lammps_close(handle)
     end
+    return nothing
 end
 
 """
-    LMP(f::Function, args=String[], comm=nothing)
+    LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
 
 Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
 """
-function LMP(f::Function, args=String[], comm=nothing)
+function LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
     lmp = LMP(args, comm)
     return f(lmp)
     # `close!` is registered as a finalizer for LMP, no need to close it here.
@@ -231,6 +239,18 @@ end
 
 function version(lmp::LMP)
     API.lammps_version(lmp)
+end
+
+"""
+    get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
+
+Return the MPI communicator used by the lammps instance or `nothing` if the lammps build doesn't support MPI.
+"""
+function get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
+    comm_f = API.lammps_get_mpi_comm(lmp)
+    comm_f == -1 && return nothing
+    comm_c = MPI.API.MPI_Comm_f2c(comm_f)
+    return MPI.Comm(comm_c)
 end
 
 struct LAMMPSError <: Exception
@@ -417,7 +437,9 @@ A full list of settings can be found in the [lammps documentation](https://docs.
 ```
 """
 function extract_setting(lmp::LMP, name::String)::Int32
-    return API.lammps_extract_setting(lmp, name)
+    val = API.lammps_extract_setting(lmp, name)
+    val == -1 && error("Could not find setting $name")
+    return val
 end
 
 """
@@ -874,7 +896,6 @@ function _get_T(lmp::LMP, name::String)
     else
         error("Unkown per atom property $name")
     end
-
 end
 
 """
@@ -1115,5 +1136,7 @@ function pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request
     return NeighList(lmp, idx)
 end
 
+
+include("external.jl")
 
 end # module

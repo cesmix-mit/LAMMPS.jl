@@ -1,6 +1,6 @@
 using Test
 using LAMMPS
-using MPI
+using MPI; MPI.Init()
 using UnsafeArrays
 
 @test_logs (:warn,"LAMMPS library path changed, you will need to restart Julia for the change to take effect") LAMMPS.set_library!(LAMMPS.locate())
@@ -70,6 +70,16 @@ end
         @test LAMMPS.API.lammps_has_error(lmp) == 0
     end
 end
+
+
+function f()
+    lmp = LMP(["-screen", "none"])
+    @test LAMMPS.version(lmp) >= 0
+    command(lmp, "clear")
+    @test_throws ErrorException command(lmp, "nonsense")
+    LAMMPS.close!(lmp)
+end
+
 
 @testset "Variables" begin
     LMP(["-screen", "none"]) do lmp
@@ -435,6 +445,21 @@ end
         @test_throws KeyError pair_neighborlist(lmp, "nonesense")
     end
 end
+
+LMP(["-screen", "none"]) do lmp
+    called = Ref(false)
+    command(lmp, "boundary p p p")
+    command(lmp, "region cell block 0 1 0 1 0 1 units box")
+    command(lmp, "create_box 1 cell")
+    LAMMPS.FixExternal(lmp, "julia", "all", 1, 1) do fix
+        called[] = true
+    end
+    command(lmp, "mass 1 1.0")
+    command(lmp, "run 0")
+    @test called[] == true
+end
+
+include("external_pair.jl")
 
 if !Sys.iswindows()
     @testset "MPI" begin
