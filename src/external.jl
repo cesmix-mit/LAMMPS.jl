@@ -5,15 +5,11 @@ function fix_external_callback end
 
 Creates a fix in lammps that calls a Julia function `callback` every `ncall` during the simulation.
 
----
-
 !!! info
     The following command is executed in LAMMPS when `FixExternal` is called in order to setup the fix:
     ```lammps
     fix <name> <group> external pf/callback <ncall> <napply>
     ```
-
----
 
 The `FixExternal` object gets passed to the `callback` function, it contains the parameters passed to `FixExternal` as fields:
 - `lmp::LMP`: The LAMMPS object.
@@ -31,6 +27,9 @@ These values are only valid during the callback execution and should *not* be us
 
 Here, the intention is for the callback to write forces to the `f` field, which will be applied to the atoms in the group every `napply` timesteps.
 `f` is *not* zeroed before the callback is called, so the forces from previous calls are preserved.
+
+Contributions to the per-atom energies or virials can be set with [`set_energy!`](@ref) and [`set_virial!`](@ref), respectively.
+
 """
 mutable struct FixExternal
     const callback
