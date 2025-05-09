@@ -91,58 +91,61 @@ function fix_external_callback(ctx::Ptr{Cvoid}, timestep::Int64, nlocal::Cint, i
 end
 
 """
-    set_virial_peratom(fix::FixExternal, virial::AbstractVector{SVector{6, Float64}}; set_global=false)
-    set_virial_peratom(fix::FixExternal, virial::AbstractMatrix{Float64}; set_global=false)
+    set_virial!(fix::FixExternal, virial_peratom::AbstractVector{SVector{6, Float64}})
+    set_virial!(fix::FixExternal, virial_peratom::AbstractMatrix{Float64})
 
-Sets the per-atom virial stress tensor for the atoms in the fix.
-The virial tensor is represented as a 6-component symmetric tensor in the order: 
+Sets the contribution to the local per-atom and total global virial stress tensors resulting from the `FixExternal`.
+This function should only be used within the callback of the `FixExternal`
+
+The virial tensor is represented as a 6-component vector with the order: 
   `[xx, yy, zz, xy, xz, yz]`.
-This is intended to only be used during the callback function of a `FixExternal`.
 """
-function set_virial_peratom(fix::FixExternal, virial::AbstractVector{SVector{6, Float64}}; set_global=false)
-    @assert length(virial) >= fix.nlocal
+function set_virial!(fix::FixExternal, virial_peratom::AbstractVector{SVector{6, Float64}})
+    @assert length(virial_peratom) >= fix.nlocal
 
     @no_escape begin
         ptrs = @alloc(Ptr{Ptr{Float64}}, fix.nlocal)
         for i in eachindex(ptrs)
-            @inbounds ptrs[i] = pointer(virial, i)
+            @inbounds ptrs[i] = pointer(virial_peratom, i)
         end
         API.lammps_fix_external_set_virial_peratom(fix.lmp, fix.name, ptrs)
     end
 
-    if set_global
-        virial_global = MVector(sum(view(virial, 1:fix.nlocal)))
-        comm = get_mpi_comm(fix.lmp)
-        GC.@preserve virial_global begin
-            if comm !== nothing
-                buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.Datatype(Float64))
-                @inline MPI.Allreduce!(buffer, +, comm)
-            end
-            @inline API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_global)
+    virial_global = MVector(sum(view(virial_peratom, 1:fix.nlocal)))
+    comm = get_mpi_comm(fix.lmp)
+    GC.@preserve virial_global begin
+        if comm !== nothing
+            buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.Datatype(Float64))
+            @inline MPI.Allreduce!(buffer, +, comm)
         end
+        @inline API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_global)
     end
 
     check(fix.lmp)
 end
 
-function set_virial_peratom(fix::FixExternal, virial::AbstractMatrix{Float64}; set_global=false)
+function set_virial(fix::FixExternal, virial::AbstractMatrix{Float64})
     virial_vec = reinterpret(reshape, SVector{6, Float64}, virial)
     set_virial_peratom(fix, virial_vec; set_global)
 end
 
-function set_energy_peratom(fix::FixExternal, energy; set_global=false)
+"""
+    set_energy!(fix::FixExternal, energy::AbstractVector{Float64}; set_global=false)
+
+Sets the contribution to the local per-atom and total global energy resulting from the `FixExternal`.
+This function should only be used within the callback of the `FixExternal`
+"""
+function set_energy!(fix::FixExternal, energy::AbstractVector{Float64})
     @assert length(energy) >= fix.nlocal
 
     API.lammps_fix_external_set_energy_peratom(fix.lmp, fix.name, energy)
 
-    if set_global
-        energy_global = sum(view(energy, 1:fix.nlocal))
-        comm = get_mpi_comm(fix.lmp)
-        if comm !== nothing
-            energy_global = MPI.Allreduce(energy_global, +, comm)
-        end
-        API.lammps_fix_external_set_energy_global(fix.lmp, fix.name, energy_global)
+    energy_global = sum(view(energy, 1:fix.nlocal))
+    comm = get_mpi_comm(fix.lmp)
+    if comm !== nothing
+        energy_global = MPI.Allreduce(energy_global, +, comm)
     end
+    API.lammps_fix_external_set_energy_global(fix.lmp, fix.name, energy_global)
 
     check(fix.lmp)
 end
@@ -407,8 +410,8 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
                 end
             end
 
-            set_energy_peratom(fix, e; set_global=true)
-            set_virial_peratom(fix, v; set_global=true)
+            set_energy!(fix, e)
+            set_virial!(fix, v)
         end
     end
 end
