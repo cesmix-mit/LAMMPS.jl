@@ -7,10 +7,11 @@ Creates a fix in lammps that calls a Julia function `callback` every `ncall` dur
 
 ---
 
-The following command is executed in LAMMPS when `FixExternal` is called in order to setup the fix:
-```lammps
-fix <name> <group> external pf/callback <ncall> <napply>
-```
+!!! info
+    The following command is executed in LAMMPS when `FixExternal` is called in order to setup the fix:
+    ```lammps
+    fix <name> <group> external pf/callback <ncall> <napply>
+    ```
 
 ---
 
@@ -307,7 +308,13 @@ _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
 
 Defines a custom pair style in LAMMPS using a user-provided potential function.
 
----
+!!! info
+    The following commands are executed in LAMMPS during the setup process of `PairExternal`:
+    ```lammps
+    fix pair_julia all external pf/callback 1 1
+    pair_style zero <cutoff> nocoeff
+    pair_coeff * *
+    ```
 
 `compute_potential` should have the following signature:
 ```julia
@@ -344,17 +351,6 @@ PairExternal(lmp, config, 2.5) do r, system, iatom, jatom
     system.qqrd2e * (iatom.q * jatom.q) / r
 end
 ```
-
----
-
-The following commands are executed in LAMMPS during the setup process of `PairExternal`:
-```lammps
-fix pair_julia all external pf/callback 1 1
-pair_style zero <cutoff> nocoeff
-pair_coeff * *
-```
-
----
 
 """
 function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{T, U}, cutoff::Float64) where {F, T, U}
