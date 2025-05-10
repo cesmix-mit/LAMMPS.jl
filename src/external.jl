@@ -5,7 +5,7 @@ function fix_external_callback end
 
 Creates a fix in lammps that calls a Julia function `callback` every `ncall` during the simulation.
 
-!!! info
+!!! info "lammps commands"
     The following command is executed in LAMMPS when `FixExternal` is called in order to setup the fix:
     ```lammps
     fix <name> <group> external pf/callback <ncall> <napply>
@@ -27,6 +27,10 @@ These values are only valid during the callback execution and should *not* be us
 
 Here, the intention is for the callback to write forces to the `f` field, which will be applied to the atoms in the group every `napply` timesteps.
 `f` is *not* zeroed before the callback is called, so the forces from previous calls are preserved.
+
+!!! info "ghost atoms"
+    `FixExternal` is invoked at the `post_force` stage of each timestep. Modified data of the ghost atoms will *not* be communicated back to
+    the processor owning the respective atom, as at this point the `reverse_comm` stage of the timestep has already happened.
 
 Contributions to the per-atom energies or virials can be set with [`set_energy!`](@ref) and [`set_virial!`](@ref), respectively.
 
@@ -310,12 +314,19 @@ _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
 
 Defines a custom pair style in LAMMPS using a user-provided potential function.
 
-!!! info
+!!! warning "limitations"
+    `PairExternal` is implemented as a `FixExternal` and only works with `newton off`.
+    Fixes that operate on forces, energies, or virials should also be defined *after* calling `PairExternal`.
+    Furthermore, it is not possible to define multiple `PairExternals` for a simulation. Attempting to do this
+    will overwrite the previously defined `PairExternal`. 
+
+!!! info "lammps commands"
     The following commands are executed in LAMMPS during the setup process of `PairExternal`:
     ```lammps
     fix pair_julia all external pf/callback 1 1
     pair_style zero <cutoff> nocoeff
     pair_coeff * *
+    newton off <newton_bond> # turns off newton_pair while leaving newton_bond unchanged
     ```
 
 `compute_potential` should have the following signature:
@@ -356,14 +367,17 @@ end
 
 """
 function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{T, U}, cutoff::Float64) where {F, T, U}
+    newton_bond = extract_setting(lmp, "newton_bond") == 0 ? "off" : "on"
     command(lmp, """
         pair_style zero $cutoff nocoeff
         pair_coeff * *
+        newton off $newton_bond
     """)
 
     system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
 
     FixExternal(lmp, "pair_julia", "all", 1, 1) do fix::FixExternal
+        @assert extract_setting(lmp, "newton_pair") == 0
         system = system_ptrs[]
         atom = ExtractAtomMultiple{U}(lmp)
 
