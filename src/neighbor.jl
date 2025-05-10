@@ -1,16 +1,16 @@
-struct NeighListVec <: AbstractVector{Cint}
+struct UnsafeNeighListVec <: AbstractVector{Cint}
     numneigh::Int
     neighbors::Ptr{Int32}
 end
 
-function Base.getindex(nle::NeighListVec, i::Integer)
+function Base.getindex(nle::UnsafeNeighListVec, i::Integer)
     @boundscheck checkbounds(nle, i)
     return unsafe_load(nle.neighbors, i)+Cint(1)
 end
 
-Base.size(nle::NeighListVec) = (nle.numneigh,)
+Base.size(nle::UnsafeNeighListVec) = (nle.numneigh,)
 
-struct NeighList <: AbstractVector{Pair{Int32, NeighListVec}}
+struct NeighList <: AbstractVector{Pair{Int32, UnsafeNeighListVec}}
     lmp::LMP
     idx::Cint
 end
@@ -21,7 +21,7 @@ function Base.getindex(nl::NeighList, element::Integer)
     neighbors = Ref{Ptr{Cint}}()
     @inline API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-one(element) #= 0-based indexing =#, iatom, numneigh, neighbors)
     @boundscheck iatom[] == -1 && throw(BoundsError(nl, element))
-    return iatom[]+Cint(1) => NeighListVec(numneigh[], neighbors[])
+    return iatom[]+Cint(1) => UnsafeNeighListVec(numneigh[], neighbors[])
 end
 
 Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
