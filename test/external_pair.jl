@@ -16,7 +16,7 @@ positions = [
     2.04191  4.97413  6.53093  0.990347  2.00388  2.41298  5.5144   5.98437  3.61306  4.09874  7.20735  3.07125   4.099    7.71419   5.83603  5.44341  5.48853   4.05366   1.81701  6.75289
 ]
 
-function test_pair(lmp_native, lmp_julia, testset)
+function test_interaction(lmp_native, lmp_julia, testset)
     for lmp in (lmp_native, lmp_julia)
         command(lmp, """
             compute potential all pe/atom
@@ -90,7 +90,7 @@ end
             scatter!(lmp, "x", positions)
         end
 
-        test_pair(lmp_native, lmp_julia, "$units $backend")
+        test_interaction(lmp_native, lmp_julia, "$units $backend")
     end
 end
 
@@ -137,6 +137,44 @@ end
             scatter!(lmp, "x", positions)
         end
 
-        test_pair(lmp_native, lmp_julia, "$units $backend")
+        test_interaction(lmp_native, lmp_julia, "$units $backend")
+    end
+end
+
+@testset "external_bond_harmonic" begin
+    file = joinpath(@__DIR__, "test_files/bonds_angles_dihedrals_impropers.data")
+
+    for units in ("lj", "si"),  backend in (nothing, AutoForwardDiff(), AutoEnzyme())
+        lmp_native = LMP(["-screen", "none"])
+        lmp_julia = LMP(["-screen", "none"])
+
+        for lmp in (lmp_native, lmp_julia)
+            command(lmp, """
+                units $units
+                atom_style molecular
+                newton off
+                read_data $file
+                pair_style none
+            """)
+        end
+
+        config = InteractionConfig(
+            system = @NamedTuple{},
+            atom = @NamedTuple{},
+            backend = backend,
+        )
+
+        BondExternal(lmp_julia, config) do r, type, system, iatom, jatom
+            energy = (r-1)^2
+            force = -2(r-1)
+            return backend === nothing ? (energy, force) : energy
+        end
+
+        command(lmp_native, """
+            bond_style harmonic
+            bond_coeff * 1 1
+        """)
+
+        test_interaction(lmp_native, lmp_julia, "$units $backend")
     end
 end

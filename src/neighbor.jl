@@ -107,3 +107,27 @@ function pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request
     idx == -1 && throw(KeyError(style))
     return NeighList(lmp, idx)
 end
+
+struct UnsafeTopologyList{N} <: AbstractVector{NTuple{N, Cint}}
+    ptr::Ptr{NTuple{N, Cint}}
+    length::Int
+end
+
+Base.size(self::UnsafeTopologyList) = (self.length, )
+function Base.getindex(self::UnsafeTopologyList, i)
+    @boundscheck checkbounds(self, i)
+    data = unsafe_load(self.ptr, i)
+    atoms = Base.front(data) .+ Cint(1) # account for 0-based indexing
+    return (atoms..., last(data))
+end
+
+function _topology_neighborlist(lmp, name, N)
+    T = Ptr{NTuple{N, Cint}}
+    length::Int = extract_setting(lmp, "n$(name)list")
+    length == 0 && return UnsafeTopologyList(T(C_NULL), length)
+    ptr::Ptr{T} = API.lammps_extract_global(lmp, "neigh_$(name)list")
+    UnsafeTopologyList(unsafe_load(ptr), length)
+end
+
+bond_neighborlist(lmp::LMP) = @inline _topology_neighborlist(lmp, :bond, 3)
+angle_neighborlist(lmp::LMP) = @inline _topology_neighborlist(lmp, :angle, 4)
