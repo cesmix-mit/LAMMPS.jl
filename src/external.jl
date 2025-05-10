@@ -428,3 +428,61 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
         end
     end
 end
+
+function BondExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{T, U}) where {F, T, U}
+    command(lmp, """
+        bond_style zero
+        bond_coeff *
+    """)
+
+    system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
+
+    FixExternal(lmp, "bond_julia", "all", 1, 1) do fix::FixExternal
+        @assert extract_setting(lmp, "newton_bond") == 0
+        system = system_ptrs[]
+        atom = ExtractAtomMultiple{U}(lmp)
+
+        @no_escape begin
+            x = reinterpret(reshape, SVector{3, Float64}, fix.x)
+            e = @alloc(Float64, fix.nlocal)
+            f = reinterpret(reshape, SVector{3, Float64}, fix.f)
+            v = @alloc(SVector{6, Float64}, fix.nlocal)
+
+            fill!(e, zero(eltype(e)))
+            fill!(f, zero(eltype(f)))
+            fill!(v, zero(eltype(v)))
+
+            @inbounds for (i, j, type) in bond_neighborlist(lmp)
+                diff = x[i] - x[j]
+                r = norm(diff)
+                iatom = atom[i]
+                jatom = atom[j]
+
+                if config.backend === nothing
+                    energy, force_magnitude = compute_potential(r, system, type, iatom, jatom)
+                else
+                    energy, derivative = value_and_derivative(compute_potential, config.backend, r, Constant(type), Constant(system), Constant(iatom), Constant(jatom))
+                    force_magnitude = -derivative
+                end
+
+                force = diff * (force_magnitude / r)
+                virial = _dott(diff) * (force_magnitude / r)
+
+                if i <= fix.nlocal
+                    e[i] += 0.5 * energy
+                    f[i] += force
+                    v[i] += 0.5 * virial
+                end
+
+                if j <= fix.nlocal
+                    e[j] += 0.5 * energy
+                    f[j] -= force
+                    v[j] += 0.5 * virial
+                end
+            end
+
+            set_energy!(fix, e)
+            set_virial!(fix, v)
+        end
+    end
+end
