@@ -11,3 +11,6 @@ docs/src/generated/
 
 # LAMMPS artifacts
 log.lammps
+
+# benchmarks
+/benchmark/*.json

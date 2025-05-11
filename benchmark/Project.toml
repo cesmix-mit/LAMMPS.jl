@@ -1,0 +1,7 @@
+[deps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+LAMMPS = "ee2e13b9-eee9-4449-aafa-cfa6a2dbe14d"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+PkgBenchmark = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"
