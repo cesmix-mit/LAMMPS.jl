@@ -38,8 +38,6 @@ function setup_reference()
         neigh_modify    delay 0 every 20 check no
 
         fix             1 all nve
-
-        run             0
     """)
 
     return lmp
@@ -81,7 +79,7 @@ function setup_external()
         return 4ε * (r6inv * (r6inv - 1))
     end
 
-    command(lmp, "run 0")
+    command(lmp, "fix 1 all nve")
     return lmp
 end
 
