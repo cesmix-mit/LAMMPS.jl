@@ -377,9 +377,9 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
     system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
 
     FixExternal(lmp, "pair_julia", "all", 1, 1) do fix::FixExternal
-        @assert extract_setting(lmp, "newton_pair") == 0
+        @assert extract_setting(fix.lmp, "newton_pair") == 0
         system = system_ptrs[]
-        atom = ExtractAtomMultiple{U}(lmp)
+        atom = ExtractAtomMultiple{U}(fix.lmp)
 
         @no_escape begin
             x = reinterpret(reshape, SVector{3, Float64}, fix.x)
