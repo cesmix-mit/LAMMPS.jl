@@ -308,6 +308,7 @@ struct InteractionConfig{T<:NamedTuple, U<:NamedTuple, B<:Union{Nothing, Abstrac
 end
 
 _dott(v) = SA[v.x*v.x, v.y*v.y, v.z*v.z, v.x*v.y, v.x*v.z, v.y*v.z]
+_dot(v, u) = SA[v.x*u.x, v.y*u.y, v.z*u.z, v.x*u.y, v.x*u.z, v.y*u.z]
 
 """
     PairExternal(compute_potential, lmp::LMP, config::InteractionConfig, cutoff::Float64)
@@ -478,6 +479,80 @@ function BondExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
                     e[j] += 0.5 * energy
                     f[j] -= force
                     v[j] += 0.5 * virial
+                end
+            end
+
+            set_energy!(fix, e)
+            set_virial!(fix, v)
+        end
+    end
+end
+
+function AngleExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{T, U}) where {F, T, U}
+    command(lmp, """
+        angle_style zero
+        angle_coeff *
+    """)
+
+    system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
+
+    FixExternal(lmp, "angle_julia", "all", 1, 1) do fix::FixExternal
+        @assert extract_setting(lmp, "newton_bond") == 0
+        system = system_ptrs[]
+        atom = ExtractAtomMultiple{U}(lmp)
+
+        @no_escape begin
+            x = reinterpret(reshape, SVector{3, Float64}, fix.x)
+            e = @alloc(Float64, fix.nlocal)
+            f = reinterpret(reshape, SVector{3, Float64}, fix.f)
+            v = @alloc(SVector{6, Float64}, fix.nlocal)
+
+            fill!(e, zero(eltype(e)))
+            fill!(f, zero(eltype(f)))
+            fill!(v, zero(eltype(v)))
+
+            @inbounds for (i, j, k, type) in angle_neighborlist(lmp)
+                diff1 = x[i] - x[j]
+                diff2 = x[k] - x[j]
+                r1 = norm(diff1)
+                r2 = norm(diff2)
+
+                c = (diff1 ⋅ diff2)/(r1 * r2)
+                c = clamp(0, c, 1)
+                s = 1 / sqrt(1 - c^2)
+                θ = acos(c)
+
+                iatom = atom[i]
+                jatom = atom[j]
+                katom = atom[k]
+                energy, derivative = value_and_derivative(compute_potential, config.backend, θ, Constant(type), Constant(system), Constant(iatom), Constant(jatom), Constant(katom))
+
+                a = - derivative * s
+                a11 = a * c / (r1 * r1)
+                a12 = - a / (r1 * r2)
+                a22 = a * c / (r2 * r2)
+
+                f1 = a11 * diff1 + a12 * diff2
+                f3 = a22 * diff2 + a12 * diff1
+
+                virial = _dot(diff1, f1) + _dot(diff2, f3)
+
+                if i <= fix.nlocal
+                    e[i] += energy/3
+                    f[i] += f1
+                    v[i] += virial/3
+                end
+
+                if j <= fix.nlocal
+                    e[j] += energy/3
+                    f[j] -= f1 + f3
+                    v[j] += virial/3
+                end
+
+                if k <= fix.nlocal
+                    e[k] += energy/3
+                    f[k] += f3
+                    v[k] += virial/3
                 end
             end
 

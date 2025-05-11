@@ -178,3 +178,75 @@ end
         test_interaction(lmp_native, lmp_julia, "$units $backend")
     end
 end
+
+@testset "external_angle_cosine" begin
+    file = joinpath(@__DIR__, "test_files/bonds_angles_dihedrals_impropers.data")
+
+    for units in ("lj", "si"),  backend in (AutoForwardDiff(), AutoEnzyme())
+        lmp_native = LMP(["-screen", "none"])
+        lmp_julia = LMP(["-screen", "none"])
+
+        for lmp in (lmp_native, lmp_julia)
+            command(lmp, """
+                units $units
+                atom_style molecular
+                newton off
+                read_data $file
+                pair_style none
+            """)
+        end
+
+        config = InteractionConfig(
+            system = @NamedTuple{},
+            atom = @NamedTuple{},
+            backend = backend,
+        )
+
+        AngleExternal(lmp_julia, config) do θ, type, system, iatom, jatom, katom
+            return 1+cos(θ)
+        end
+
+        command(lmp_native, """
+            angle_style cosine
+            angle_coeff * 1
+        """)
+
+        test_interaction(lmp_native, lmp_julia, "$units $backend")
+    end
+end
+
+@testset "external_angle_harmonic" begin
+    file = joinpath(@__DIR__, "test_files/bonds_angles_dihedrals_impropers.data")
+
+    for units in ("lj", "si"),  backend in (AutoForwardDiff(), AutoEnzyme())
+        lmp_native = LMP(["-screen", "none"])
+        lmp_julia = LMP(["-screen", "none"])
+
+        for lmp in (lmp_native, lmp_julia)
+            command(lmp, """
+                units $units
+                atom_style molecular
+                newton off
+                read_data $file
+                pair_style none
+            """)
+        end
+
+        config = InteractionConfig(
+            system = @NamedTuple{},
+            atom = @NamedTuple{},
+            backend = backend,
+        )
+
+        AngleExternal(lmp_julia, config) do θ, type, system, iatom, jatom, katom
+            return (θ-deg2rad(45))^2
+        end
+
+        command(lmp_native, """
+            angle_style harmonic
+            angle_coeff * 1 45
+        """)
+
+        test_interaction(lmp_native, lmp_julia, "$units $backend")
+    end
+end
