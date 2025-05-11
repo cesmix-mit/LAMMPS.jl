@@ -396,10 +396,12 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
                 ipos = x[i]
 
                 for j in neigh
-                    jatom = atom[j]
                     diff = ipos - x[j]
-                    r = norm(diff)
-                    r > cutoff && continue
+                    rsqr = diff ⋅ diff
+                    rsqr > cutoff^2 && continue
+                    r = sqrt(rsqr)
+
+                    jatom = atom[j]
 
                     if config.backend === nothing
                         energy, force_magnitude = compute_potential(r, system, iatom, jatom)
