@@ -12,5 +12,8 @@ authors:
     family-names: Churavy
     email: v.churavy@gmail.com
     orcid: 'https://orcid.org/0000-0002-9033-165X'
+  - given-names: Johannes
+    family-names: Roksvaag
+    email:  johannes@roksvaag.com
 repository-code: 'https://github.com/cesmix-mit/LAMMPS.jl'
 license: MIT
