@@ -1,0 +1,16 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: LAMMPS.jl
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Valentin
+    family-names: Churavy
+    email: v.churavy@gmail.com
+    orcid: 'https://orcid.org/0000-0002-9033-165X'
+repository-code: 'https://github.com/cesmix-mit/LAMMPS.jl'
+license: MIT
