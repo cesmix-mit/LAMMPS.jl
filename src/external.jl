@@ -127,7 +127,7 @@ function set_virial!(fix::FixExternal, virial_peratom::AbstractVector{SVector{6,
     check(fix.lmp)
 end
 
-function set_virial(fix::FixExternal, virial::AbstractMatrix{Float64})
+function set_virial!(fix::FixExternal, virial::AbstractMatrix{Float64})
     virial_vec = reinterpret(reshape, SVector{6, Float64}, virial)
     set_virial_peratom(fix, virial_vec; set_global)
 end

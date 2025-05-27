@@ -836,7 +836,7 @@ function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing,
 
     if data isa Vector
         @assert count == 1
-        @assert ndata == lenght(data)
+        @assert ndata == length(data)
     else
         @assert count == size(data,1)
         @assert ndata == size(data,2)
