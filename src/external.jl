@@ -377,9 +377,9 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
     system_ptrs = ExtractGlobalMultiple{T}(lmp) # persistent in memory
 
     FixExternal(lmp, "pair_julia", "all", 1, 1) do fix::FixExternal
-        @assert extract_setting(lmp, "newton_pair") == 0
+        @assert extract_setting(fix.lmp, "newton_pair") == 0
         system = system_ptrs[]
-        atom = ExtractAtomMultiple{U}(lmp)
+        atom = ExtractAtomMultiple{U}(fix.lmp)
 
         @no_escape begin
             x = reinterpret(reshape, SVector{3, Float64}, fix.x)
@@ -396,10 +396,12 @@ function PairExternal(compute_potential::F, lmp::LMP, config::InteractionConfig{
                 ipos = x[i]
 
                 for j in neigh
-                    jatom = atom[j]
                     diff = ipos - x[j]
-                    r = norm(diff)
-                    r > cutoff && continue
+                    rsqr = diff ⋅ diff
+                    rsqr > cutoff^2 && continue
+                    r = sqrt(rsqr)
+
+                    jatom = atom[j]
 
                     if config.backend === nothing
                         energy, force_magnitude = compute_potential(r, system, iatom, jatom)
