@@ -11,3 +11,7 @@ docs/src/generated/
 
 # LAMMPS artifacts
 log.lammps
+
+# benchmarks
+results_LAMMPS@*.json
+results_LAMMPS@*.json.tmp
