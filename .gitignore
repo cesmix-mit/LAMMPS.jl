@@ -13,4 +13,5 @@ docs/src/generated/
 log.lammps
 
 # benchmarks
-/benchmark/*.json
+results_LAMMPS@*.json
+results_LAMMPS@*.json.tmp
