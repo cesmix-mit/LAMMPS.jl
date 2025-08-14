@@ -148,11 +148,17 @@ function set_library!(path)
 end
 
 """
-    LMP(args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
+    LMP([f::Function,] args::Vector{String}=String[], comm=MPI.COMM_WORLD)
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
-
 A full ist of command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
+
+```julia
+LMP(["-log", "none"]) do lmp
+    command(lmp, "print \\"created a new lammps instance\\"")
+end
+```
+
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
@@ -192,6 +198,12 @@ mutable struct LMP
     end
 end
 
+function LMP(f::Function, args::Vector{String}=String[], comm=MPI.COMM_WORLD)
+    lmp = LMP(args, comm)
+    return f(lmp)
+    # `close!` is registered as a finalizer for LMP, no need to close it here.
+end
+
 function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)    
     lmp.handle == C_NULL && error("The LMP object doesn't point to a valid LAMMPS instance! "
             * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
@@ -199,11 +211,6 @@ function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
-"""
-    close!(lmp::LMP)
-
-Shutdown a LAMMPS instance.
-"""
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
@@ -211,17 +218,6 @@ function close!(lmp::LMP)
         API.lammps_close(handle)
     end
     return nothing
-end
-
-"""
-    LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
-
-Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
-"""
-function LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
-    lmp = LMP(args, comm)
-    return f(lmp)
-    # `close!` is registered as a finalizer for LMP, no need to close it here.
 end
 
 function version(lmp::LMP)
@@ -445,7 +441,7 @@ Scalar values get returned as a vector with a single element. This way it's poss
 modify the internal state of the LAMMPS instance even if the data is scalar.
 
 !!! info
-    Closing the LAMMPS instance or issuing a clear command after calling this method
+    Closing the LAMMPS instance or issuing a clear after calling this method
     will result in the returned data becoming invalid. To prevent this, copy the returned data.
 
 !!! warning
