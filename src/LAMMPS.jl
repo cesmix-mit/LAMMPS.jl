@@ -760,11 +760,9 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 
 The returned Array is decoupled from the internal state of the LAMMPS instance.
 
-!!! warning "ids"
-    The optional parameter `ids` only works, if there is a map defined. For example by doing:
-    `command(lmp, "atom_modify map yes")`
-    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
-    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
+!!! info "ids"
+    Atom IDs must be defined and consecutive.
+    The optional parameter `ids` only works, if an [atom map](https://docs.lammps.org/atom_modify.html) is enabeld. 
 """
 function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
@@ -799,11 +797,9 @@ The optional parameter `ids` determines to which subset of atoms the data will b
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
 
-!!! warning "ids"
-    The optional parameter `ids` only works, if there is a map defined. For example by doing:
-    `command(lmp, "atom_modify map yes")`
-    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
-    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
+!!! info "ids"
+    Atom IDs must be defined and consecutive.
+    The optional parameter `ids` only works, if an [atom map](https://docs.lammps.org/atom_modify.html) is enabeld. 
 """
 function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
