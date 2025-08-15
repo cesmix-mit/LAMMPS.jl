@@ -324,9 +324,15 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
     check(lmp)
 end
 
+
+function _array_stride_valid(arr)
+    # Only allow arrays which can be re-interpreted as a 1D array in memory. 
+    return strides(arr) == (1, Base.front(size(arr))...)
+end
+
 """
     create_atoms(
-        lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+        lmp::LMP, x::AbstractMatrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
         v::Union{Nothing,Matrix{Float64}}=nothing,
         image::Union{Nothing,Vector{IMAGEINT}}=nothing,
         bexpand::Bool=false
@@ -341,12 +347,15 @@ Create atoms for a LAMMPS instance.
 `bexpand` is a `Bool` that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
 function create_atoms(
-    lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+    lmp::LMP, x::AbstractMatrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
     v::Union{Nothing,Matrix{Float64}}=nothing,
     image::Union{Nothing,Vector{IMAGEINT}}=nothing,
     bexpand::Bool=false
 )
     numAtoms = size(x, 2)
+    if !_array_stride_valid(x)
+        throw(ArgumentError("x must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
     if size(x, 1) != 3
         throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
     end
@@ -808,7 +817,7 @@ function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, id
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
@@ -822,8 +831,12 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+
+    if !_array_stride_valid(data)
+        throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
 
     count = _get_count(lmp, name)
     _T = _get_T(lmp, name)
