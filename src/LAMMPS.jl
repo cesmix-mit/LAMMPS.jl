@@ -325,6 +325,14 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
 end
 
 """
+Only allow arrays which can be re-interpreted as a 1D array in memory. 
+Things like sparse arrays and views into larger arrays will not work.
+"""
+function array_stride_valid(arr)
+    return strides(arr) == (1, Base.front(size(arr))...)
+end
+
+"""
     create_atoms(
         lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
         v::Union{Nothing,Matrix{Float64}}=nothing,
@@ -347,6 +355,9 @@ function create_atoms(
     bexpand::Bool=false
 )
     numAtoms = size(x, 2)
+    if !array_stride_valid(x)
+        throw(ArgumentError("x must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
     if size(x, 1) != 3
         throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
     end
@@ -824,6 +835,10 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+
+    if !array_stride_valid(data)
+        throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
 
     count = _get_count(lmp, name)
     _T = _get_T(lmp, name)
