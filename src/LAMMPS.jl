@@ -332,7 +332,7 @@ end
 
 """
     create_atoms(
-        lmp::LMP, x::Matrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+        lmp::LMP, x::AbstractMatrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
         v::Union{Nothing,Matrix{Float64}}=nothing,
         image::Union{Nothing,Vector{IMAGEINT}}=nothing,
         bexpand::Bool=false
@@ -817,7 +817,7 @@ function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, id
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::VecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
