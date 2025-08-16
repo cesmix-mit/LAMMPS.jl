@@ -10,7 +10,7 @@ import UnsafeArrays: UnsafeArray
 include("api.jl")
 
 export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, extract_global,
-       extract_setting, extract_box, reset_box, gather, gather_bonds, gather_angles, gather_dihedrals,
+       extract_setting, extract_box, reset_box, gather, gather!, gather_bonds, gather_angles, gather_dihedrals,
        gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError, FixExternal,
        PairExternal, set_energy!, set_virial!, InteractionConfig,
        encode_image_flags, decode_image_flags, compute_neighborlist, fix_neighborlist, pair_neighborlist,
@@ -765,6 +765,27 @@ end
 
 @deprecate gather_atoms(lmp::LMP, name, T, count) gather(lmp, name, T)
 
+function _gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids, count, natoms, ndata) where {T <: Union{Int32, Float64}}
+
+    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+    
+    _T = _get_T(lmp, name)
+
+    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
+
+    dtype = (T === Float64)
+
+     if isnothing(ids)
+        API.lammps_gather(lmp, name, dtype, count, data)
+    else
+        @assert all(1 <= id <= natoms for id in ids)
+        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
+    end
+
+    check(lmp)
+    return data
+
+end
 
 """
     gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
@@ -784,27 +805,42 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
 
     count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
-
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
-
-    dtype = (T === Float64)
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
+    
     data = Matrix{T}(undef, (count, ndata))
 
-    if isnothing(ids)
-        API.lammps_gather(lmp, name, dtype, count, data)
-    else
-        @assert all(1 <= id <= natoms for id in ids)
-        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
-    end
+   return _gather!(lmp, name, data, ids, count, natoms, ndata)
 
-    check(lmp)
-    return data
+end
+
+"""
+    gather(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing)
+
+Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes and store the result in data.
+By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
+The optional parameter `ids` determines for which subset of atoms the requested data will be gathered. The returned data will then be ordered according to `ids`
+
+Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
+
+The returned Array is decoupled from the internal state of the LAMMPS instance.
+
+!!! warning "ids"
+    The optional parameter `ids` only works, if there is a map defined. For example by doing:
+    `command(lmp, "atom_modify map yes")`
+    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
+    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
+"""
+function gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
+    
+    count = _get_count(lmp, name)
+    natoms = get_natoms(lmp)
+    ndata = isnothing(ids) ? natoms : length(ids)
+
+    return _gather!(lmp, name, data, ids, count, natoms, ndata)
+
 end
 
 """
