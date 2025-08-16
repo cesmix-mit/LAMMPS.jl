@@ -809,7 +809,7 @@ function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, id
     count = _get_count(lmp, name)
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
-    
+
     data = Matrix{T}(undef, (count, ndata))
 
    return _gather!(lmp, name, data, ids, count, natoms, ndata)
@@ -817,7 +817,7 @@ function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, id
 end
 
 """
-    gather(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing)
+    gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing)
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes and store the result in data.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
