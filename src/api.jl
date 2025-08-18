@@ -132,7 +132,7 @@ function lammps_memory_usage(handle, meminfo)
 end
 
 function lammps_get_mpi_comm(handle)
-    ccall((:lammps_get_mpi_comm, liblammps), MPI_Comm, (Ptr{Cvoid},), handle)
+    ccall((:lammps_get_mpi_comm, liblammps), Cint, (Ptr{Cvoid},), handle)
 end
 
 function lammps_extract_setting(handle, keyword)
