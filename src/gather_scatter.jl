@@ -51,7 +51,7 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
 end
 
 """
-    gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
+    gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE [, ids::Array{Int32}])
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -59,13 +59,17 @@ The optional parameter `ids` determines for which subset of atoms the requested 
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
 
-The returned Array is decoupled from the internal state of the LAMMPS instance.
+| valid values for `lmp_type`: | resulting return type:   |
+| :--------------------------- | :----------------------- |
+| `LAMMPS_INT`                 | `Vector{Int32}`          |
+| `LAMMPS_INT_2D`              | `Matrix{Int32}`          |
+| `LAMMPS_DOUBLE`              | `Vector{Float64}`        |
+| `LAMMPS_DOUBLE_2D`           | `Matrix{Float64}`        |
 
-!!! warning "ids"
+
+!!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
-    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
-    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
     ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
@@ -96,7 +100,7 @@ function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Noth
 end
 
 """
-    gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing)
+    gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::Array{Int32}]) where {T <: Union{Int32, Float64}}
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes and store the result in data.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -104,13 +108,9 @@ The optional parameter `ids` determines for which subset of atoms the requested 
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
 
-The returned Array is decoupled from the internal state of the LAMMPS instance.
-
-!!! warning "ids"
+!!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
-    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
-    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
@@ -123,7 +123,7 @@ function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{N
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::Array{Int32}]) where T<:Union{Int32, Float64}
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
@@ -131,11 +131,9 @@ The optional parameter `ids` determines to which subset of atoms the data will b
 
 Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per-atom entites have no prefix.
 
-!!! warning "ids"
+!!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
-    However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
-    Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
