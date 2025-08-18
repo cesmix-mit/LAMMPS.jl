@@ -1,69 +1,52 @@
-function _get_count(lmp::LMP, name::String)
-    # values taken from: https://docs.lammps.org/Classes_atom.html#_CPPv4N9LAMMPS_NS4Atom7extractEPKc
+function _get_type_and_count(lmp::LMP, name::String)
+    count::Int = 0
+    type::Int = -1
 
     if startswith(name, r"[f,c]_")
-        if name[1] == 'c'
-            API.lammps_has_id(lmp, "compute", name[3:end]) != 1 && error("Unknown per atom compute $name")
-            count_ptr = API.lammps_extract_compute(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS)
-        else
-            API.lammps_has_id(lmp, "fix", name[3:end]) != 1 && error("Unknown per atom fix $name")
-            count_ptr = API.lammps_extract_fix(lmp::LMP, name[3:end], API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
-        end
+        actual_name = @view name[3:end]
+        count_ptr::Ptr{Cint} = name[1] == 'c' ?
+            API.lammps_extract_compute(lmp::LMP, actual_name, API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS) :
+            API.lammps_extract_fix(lmp::LMP, actual_name, API.LMP_STYLE_ATOM, API.LMP_SIZE_COLS, 0, 0)
         check(lmp)
-
-        count_ptr = reinterpret(Ptr{Cint}, count_ptr)
         count = unsafe_load(count_ptr)
-    
-        # a count of 0 indicates that the entity is a vector. In order to perserve type stability we just treat that as a 1xN Matrix.
-        return count == 0 ? Cint(1) : count
+        type = iszero(count) ? API.LAMMPS_DOUBLE : API.LAMMPS_DOUBLE_2D
     else
         type = API.lammps_extract_atom_datatype(lmp, name)
-        type == -1 && error("Unknown per-atom property $name")
+        type == -1 && throw(ArgumentErro("Unknown per-atom property $name"))
         if type in (API.LAMMPS_INT_2D, API.LAMMPS_DOUBLE_2D, API.LAMMPS_INT64_2D)
-            API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
-        else
-            return Cint(1)
+            count = API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
         end
     end
+    return type, count
 end
 
-function _get_T(lmp::LMP, name::String)
-    if startswith(name, r"[f,c]_")
-        return Float64 # computes and fixes are allways doubles
-    end
+function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) where {T <: Union{Int32, Float64}}
+    dtype::Int = T === Float64 # 1 for Float64, 0 for Int32
+    ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
 
-    type = API.lammps_extract_atom_datatype(lmp, name)
-    check(lmp)
+    (type, count) = name == "image" && ndims(data) == 2 ?
+        (API.LAMMPS_INT_2D, 3) :
+        _get_type_and_count(lmp, name)
 
-    if type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
-        return Int32
-    elseif type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
-        return Float64
+    if type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
+        T !== Float64 && throw(ArgumentError("Expected a matrix with eltype `Float64` got eltype `Int32` instead."))
+    elseif type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
+        T !== Int32 && throw(ArgumentError("Expected a matrix with eltype `Int32` got eltype `Float64` instead."))
     else
-        error("Unkown per atom property $name")
+        @assert false # this shouldn't be possible, I think ...
     end
-end
 
-function _gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids, count, natoms, ndata) where {T <: Union{Int32, Float64}}
+    expected_size = count == 0 ? (ndata, ) : (count, ndata)
+    size(data) == expected_size || throw(ArgumentError("expected array with size $expected_size got array of size $(size(data)) instead."))
 
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+    !_array_stride_valid(data) && throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
     
-    _T = _get_T(lmp, name)
-
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
-
-    dtype = (T === Float64)
-
-     if isnothing(ids)
-        API.lammps_gather(lmp, name, dtype, count, data)
+    if isnothing(ids)
+        return lmp, name, dtype, max(count, 1), data
     else
         @assert all(1 <= id <= natoms for id in ids)
-        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
+        return lmp, name, data, ids, max(count, 1), natoms, ndata
     end
-
-    check(lmp)
-    return data
-
 end
 
 """
@@ -83,20 +66,45 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function gather(lmp::LMP, name::String, T::Union{Type{Int32}, Type{Float64}}, ids::Union{Nothing, Array{Int32}}=nothing)
+function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
+    ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
+    
+    (type::Int, count) = name == "image" && lmp_type === LAMMPS_INT_2D ?
+        (API.LAMMPS_INT_2D, 3) :
+        _get_type_and_count(lmp, name)
 
-    count = _get_count(lmp, name)
-    natoms = get_natoms(lmp)
-    ndata = isnothing(ids) ? natoms : length(ids)
+    count = max(1, count)
 
-    data = Matrix{T}(undef, (count, ndata))
+    expect = API._LMP_DATATYPE_CONST(type)
+    receive = get_enum(lmp_type)
+    expect != receive && throw(ArgumentError("TypeMismatch: Expected $expect got $receive instead!"))
 
-   return _gather!(lmp, name, data, ids, count, natoms, ndata)
+    if lmp_type === LAMMPS_DOUBLE 
+        data = Vector{Float64}(undef, ndata)
+        dtype = 1
+    elseif lmp_type === LAMMPS_INT
+        data = Vector{Int32}(undef, ndata)
+        dtype = 0
+    elseif lmp_type === LAMMPS_DOUBLE_2D
+        data = Matrix{Float64}(undef, count, ndata)
+        dtype = 1
+    elseif lmp_type === LAMMPS_INT_2D
+        data = Matrix{Int32}(undef, count, ndata)
+        dtype = 0
+    else
+        throw(ArgumentError("type $lmp_type is not supported for gather/scatter operations"))
+    end
 
+    ids === nothing ?
+        API.lammps_gather(lmp, name, dtype, count, data) :
+        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
+    
+    check(lmp)
+    return data
 end
 
 """
-    gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing)
+    gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing)
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes and store the result in data.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -112,22 +120,14 @@ The returned Array is decoupled from the internal state of the LAMMPS instance.
     However, LAMMPS only issues a warning if that's the case, which unfortuately cannot be detected through the underlying API.
     Starting form LAMMPS version `17 Apr 2024` this should no longer be an issue, as LAMMPS then throws an error instead of a warning.
 """
-function gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
-    
-    count = _get_count(lmp, name)
-    natoms = get_natoms(lmp)
-    ndata = isnothing(ids) ? natoms : length(ids)
-
-    if !_array_stride_valid(data)
-        throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
-    end
-
-    if size(data) != (count, ndata)
-        throw(ArgumentError("Dimension of provided storage must be $(count) x $(ndata) for name $name. Got $(size(data))"))
-    end
-
-    return _gather!(lmp, name, data, ids, count, natoms, ndata)
-
+function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
+    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
+    param = _check_array(lmp, name, data, ids)
+    isnothing(ids) ?
+        API.lammps_gather(param...) :
+        API.lammps_gather_subset(param...)
+    check(lmp)
+    return data
 end
 
 """
@@ -147,35 +147,10 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
-
-    if !_array_stride_valid(data)
-        throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
-    end
-
-    count = _get_count(lmp, name)
-    _T = _get_T(lmp, name)
-
-    @assert ismissing(_T) || _T == T "Expected data type $_T got $T instead."
-
-    dtype = (T === Float64)
-    natoms = get_natoms(lmp)
-    ndata = isnothing(ids) ? natoms : length(ids)
-
-    if data isa Vector
-        @assert count == 1
-        @assert ndata == length(data)
-    else
-        @assert count == size(data,1)
-        @assert ndata == size(data,2)
-    end
-
-    if isnothing(ids)
-        API.lammps_scatter(lmp, name, dtype, count, data)
-    else
-        @assert all(1 <= id <= natoms for id in ids)
-        API.lammps_scatter_subset(lmp, name, dtype, count, ndata, ids, data)
-    end
-
+    param = _check_array(lmp, name, data, ids)
+    isnothing(ids) ?
+        API.lammps_scatter(param...) :
+        API.lammps_scatter_subset(param...)
     check(lmp)
 end
 
