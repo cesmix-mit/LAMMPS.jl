@@ -771,9 +771,6 @@ function extract_variable_datatype(lmp::LMP, name)
     return API._LMP_VAR_CONST(res)
 end
 
-
-@deprecate gather_atoms(lmp::LMP, name, T, count) gather(lmp, name, T)
-
 function _gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids, count, natoms, ndata) where {T <: Union{Int32, Float64}}
 
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
@@ -1054,7 +1051,6 @@ function group_to_atom_ids(lmp::LMP, group::String)
 
     error("Cannot find group $group")
 end
-
 
 """
     get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
