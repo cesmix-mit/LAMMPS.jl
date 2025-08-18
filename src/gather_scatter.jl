@@ -70,6 +70,10 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 !!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
+
+!!! note "image"
+    for the per-atom property "image" either `LAMMPS_INT` or `LAMMPS_INT_2D` can be provided as the `lmp_type`,
+    returning the encoded or decoded image flags, respectively.
 """
 function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
     ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
@@ -111,6 +115,10 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 !!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
+
+!!! note "image"
+    for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
+    representing the encoded or decoded image flags, respectively.
 """
 function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
@@ -134,6 +142,10 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 !!! info "ids"
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
+
+!!! note "image"
+    for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
+    representing the encoded or decoded image flags, respectively.
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
     name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
