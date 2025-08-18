@@ -741,7 +741,7 @@ function group_to_atom_ids(lmp::LMP, group::String)
         API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
         buffer != name_padded && continue
 
-        mask = gather(lmp, "mask", Int32)[:] .& (1 << idx) .!= 0
+        mask = gather(lmp, "mask", LAMMPS_INT) .& (1 << idx) .!= 0
         all_ids = UnitRange{Int32}(1, get_natoms(lmp))
 
         return all_ids[mask]

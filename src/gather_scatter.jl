@@ -12,7 +12,7 @@ function _get_type_and_count(lmp::LMP, name::String)
         type = iszero(count) ? API.LAMMPS_DOUBLE : API.LAMMPS_DOUBLE_2D
     else
         type = API.lammps_extract_atom_datatype(lmp, name)
-        type == -1 && throw(ArgumentErro("Unknown per-atom property $name"))
+        type == -1 && throw(ArgumentError("Unknown per-atom property $name"))
         if type in (API.LAMMPS_INT_2D, API.LAMMPS_DOUBLE_2D, API.LAMMPS_INT64_2D)
             count = API.lammps_extract_atom_size(lmp, name, API.LMP_SIZE_COLS)
         end
@@ -22,7 +22,8 @@ end
 
 function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) where {T <: Union{Int32, Float64}}
     dtype::Int = T === Float64 # 1 for Float64, 0 for Int32
-    ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
+    natoms = get_natoms(lmp)
+    ndata::Int = isnothing(ids) ? natoms : length(ids)
 
     (type, count) = name == "image" && ndims(data) == 2 ?
         (API.LAMMPS_INT_2D, 3) :
@@ -45,7 +46,7 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
         return lmp, name, dtype, max(count, 1), data
     else
         @assert all(1 <= id <= natoms for id in ids)
-        return lmp, name, data, ids, max(count, 1), natoms, ndata
+        return lmp, name, dtype, max(count, 1), ndata, ids, data
     end
 end
 
@@ -81,26 +82,17 @@ function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Noth
 
     if lmp_type === LAMMPS_DOUBLE 
         data = Vector{Float64}(undef, ndata)
-        dtype = 1
     elseif lmp_type === LAMMPS_INT
         data = Vector{Int32}(undef, ndata)
-        dtype = 0
     elseif lmp_type === LAMMPS_DOUBLE_2D
         data = Matrix{Float64}(undef, count, ndata)
-        dtype = 1
     elseif lmp_type === LAMMPS_INT_2D
         data = Matrix{Int32}(undef, count, ndata)
-        dtype = 0
     else
         throw(ArgumentError("type $lmp_type is not supported for gather/scatter operations"))
     end
 
-    ids === nothing ?
-        API.lammps_gather(lmp, name, dtype, count, data) :
-        API.lammps_gather_subset(lmp, name, dtype, count, ndata, ids, data)
-    
-    check(lmp)
-    return data
+    gather!(lmp, name, data, ids)
 end
 
 """

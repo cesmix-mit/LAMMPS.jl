@@ -162,51 +162,51 @@ end
         data = zeros(Float64, 3, 27)
         data_svector = [SVector(rand(3)...) for _ in 1:27]
         bad_view = @views data[1:3, [1,5,7,9,11]]
-        subset = Int32.([2,5,10, 5])
+        subset = Int32[2,5,10, 5]
         data_subset = ones(Float64, 3, 4)
 
-        subset_bad1 = Int32.([28])
-        subset_bad2 = Int32.([0])
+        subset_bad1 = Int32[28]
+        subset_bad2 = Int32[0]
         subset_bad_data = ones(Float64, 3,1)
 
-        @test_throws AssertionError gather(lmp, "x", Int32)
-        @test_throws AssertionError gather(lmp, "id", Float64)
+        @test_throws ArgumentError gather(lmp, "x", LAMMPS_INT_2D)
+        @test_throws ArgumentError gather(lmp, "id", LAMMPS_DOUBLE)
 
-        @test_throws ErrorException gather(lmp, "nonesense", Float64)
-        @test_throws ErrorException gather(lmp, "c_nonsense", Float64)
-        @test_throws ErrorException gather(lmp, "f_nonesense", Float64)
+        @test_throws ArgumentError gather(lmp, "nonesense", LAMMPS_DOUBLE)
+        @test_throws LAMMPSError gather(lmp, "c_nonsense", LAMMPS_DOUBLE)
+        @test_throws LAMMPSError gather(lmp, "f_nonesense", LAMMPS_DOUBLE)
 
-        @test_throws AssertionError gather(lmp, "x", Float64, subset_bad1)
-        @test_throws AssertionError gather(lmp, "x", Float64, subset_bad2)
+        @test_throws AssertionError gather(lmp, "x", LAMMPS_DOUBLE_2D, subset_bad1)
+        @test_throws AssertionError gather(lmp, "x", LAMMPS_DOUBLE_2D, subset_bad2)
 
-        @test_throws ErrorException scatter!(lmp, "nonesense", data)
-        @test_throws ErrorException scatter!(lmp, "c_nonsense", data)
-        @test_throws ErrorException scatter!(lmp, "f_nonesense", data)
+        @test_throws ArgumentError scatter!(lmp, "nonesense", data)
+        @test_throws LAMMPSError scatter!(lmp, "c_nonsense", data)
+        @test_throws LAMMPSError scatter!(lmp, "f_nonesense", data)
 
         @test_throws ArgumentError scatter!(lmp, "x", bad_view)
         @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad1)
         @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad2)
 
-        @test gather(lmp, "x", Float64) == gather(lmp, "c_pos", Float64) == gather(lmp, "f_pos", Float64)
+        @test gather(lmp, "x", LAMMPS_DOUBLE_2D) == gather(lmp, "c_pos", LAMMPS_DOUBLE_2D) == gather(lmp, "f_pos", LAMMPS_DOUBLE_2D)
 
-        @test gather(lmp, "x", Float64)[:,subset] == gather(lmp, "x", Float64, subset)
-        @test gather(lmp, "c_pos", Float64)[:,subset] == gather(lmp, "c_pos", Float64, subset)
-        @test gather(lmp, "f_pos", Float64)[:,subset] == gather(lmp, "f_pos", Float64, subset)
+        @test gather(lmp, "x", LAMMPS_DOUBLE_2D)[:,subset] == gather(lmp, "x", LAMMPS_DOUBLE_2D, subset)
+        @test gather(lmp, "c_pos", LAMMPS_DOUBLE_2D)[:,subset] == gather(lmp, "c_pos", LAMMPS_DOUBLE_2D, subset)
+        @test gather(lmp, "f_pos", LAMMPS_DOUBLE_2D)[:,subset] == gather(lmp, "f_pos", LAMMPS_DOUBLE_2D, subset)
 
         scatter!(lmp, "x", data)
         scatter!(lmp, "f_pos", data)
         scatter!(lmp, "c_pos", data)
 
-        @test gather(lmp, "x", Float64) == gather(lmp, "c_pos", Float64) == gather(lmp, "f_pos", Float64) == data
+        @test gather(lmp, "x", LAMMPS_DOUBLE_2D) == gather(lmp, "c_pos", LAMMPS_DOUBLE_2D) == gather(lmp, "f_pos", LAMMPS_DOUBLE_2D) == data
 
         scatter!(lmp, "x", data_subset, subset)
         scatter!(lmp, "c_pos", data_subset, subset)
         scatter!(lmp, "f_pos", data_subset, subset)
 
-        @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
+        @test gather(lmp, "x", LAMMPS_DOUBLE_2D, subset) == gather(lmp, "c_pos", LAMMPS_DOUBLE_2D, subset) == gather(lmp, "f_pos", LAMMPS_DOUBLE_2D, subset) == data_subset
 
         scatter!(lmp, "x", reinterpret(reshape, Float64, data_svector))
-        res = reinterpret(SVector{3, Float64}, gather(lmp, "x", Float64))
+        res = reinterpret(SVector{3, Float64}, gather(lmp, "x", LAMMPS_DOUBLE_2D))
         @test all(res[i] == data_svector[i] for i in eachindex(data_svector))
 
         storage = similar(data)
