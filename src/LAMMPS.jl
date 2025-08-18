@@ -839,6 +839,13 @@ function gather!(lmp::LMP, name::String, data::AbstractMatrix{T}, ids::Union{Not
     natoms = get_natoms(lmp)
     ndata = isnothing(ids) ? natoms : length(ids)
 
+    if !_array_stride_valid(x)
+        throw(ArgumentError("x must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
+    if size(x) == (count, ndata)
+        throw(ArgumentError("Dimension of data must be $(count) x $(ndata) for name $name. Got $(size(data))"))
+    end
+
     return _gather!(lmp, name, data, ids, count, natoms, ndata)
 
 end
