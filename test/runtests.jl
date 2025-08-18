@@ -2,6 +2,7 @@ using Test
 using LAMMPS
 using MPI; MPI.Init()
 using UnsafeArrays
+using StaticArrays
 
 @test_logs (:warn,"LAMMPS library path changed, you will need to restart Julia for the change to take effect") LAMMPS.set_library!(LAMMPS.locate())
 
@@ -159,6 +160,8 @@ end
         """)
 
         data = zeros(Float64, 3, 27)
+        data_svector = [SVector(rand(3)...) for _ in 1:27]
+        bad_view = @views data[1:3, [1,5,7,9,11]]
         subset = Int32.([2,5,10, 5])
         data_subset = ones(Float64, 3, 4)
 
@@ -180,6 +183,7 @@ end
         @test_throws ErrorException scatter!(lmp, "c_nonsense", data)
         @test_throws ErrorException scatter!(lmp, "f_nonesense", data)
 
+        @test_throws ArgumentError scatter!(lmp, "x", bad_view)
         @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad1)
         @test_throws AssertionError scatter!(lmp, "x", subset_bad_data, subset_bad2)
 
@@ -200,6 +204,14 @@ end
         scatter!(lmp, "f_pos", data_subset, subset)
 
         @test gather(lmp, "x", Float64, subset) == gather(lmp, "c_pos", Float64, subset) == gather(lmp, "f_pos", Float64, subset) == data_subset
+
+        scatter!(lmp, "x", reinterpret(reshape, Float64, data_svector))
+        res = reinterpret(SVector{3, Float64}, gather(lmp, "x", Float64))
+        @test all(res[i] == data_svector[i] for i in eachindex(data_svector))
+
+        storage = similar(data)
+        scatter!(lmp, "x", reinterpret(reshape, Float64, data_svector))
+        @test gather!(lmp, "x", storage) == reinterpret(reshape, Float64, data_svector)
 
         # verify that no errors were missed
         @test LAMMPS.API.lammps_has_error(lmp) == 0
