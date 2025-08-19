@@ -275,3 +275,8 @@ function create_atoms(
     API.lammps_create_atoms(lmp, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
     check(lmp)
 end
+
+function gather(::LMP, ::String, ::Type, ::Union{Nothing, Array{Int32}}=nothing)
+    throw("`gather(::LMP, ::String, ::Type [,ids])` is deprecated! " *
+    "use `gather(::LMP, ::String, ::_LMP_TYPE [,ids])` instead!")
+end
