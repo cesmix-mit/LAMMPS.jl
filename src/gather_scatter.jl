@@ -262,15 +262,16 @@ function create_atoms(
     if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
     end
-    if v != nothing && size(x) != size(v)
+    if v !== nothing && size(x) != size(v)
         throw(ArgumentError("x and v must be the same size"))
     end
-    if image != nothing && numAtoms != length(image)
+    if image !== nothing && numAtoms != length(image)
         throw(ArgumentError("image must have the same length as the number of atoms"))
     end
 
-    v = v == nothing ? C_NULL : v
-    image = image == nothing ? C_NULL : image
+    v = v === nothing ? C_NULL : v
+    image = image === nothing ? C_NULL : image
 
     API.lammps_create_atoms(lmp, numAtoms, id, types, x, v, image, bexpand ? 1 : 0)
+    check(lmp)
 end
