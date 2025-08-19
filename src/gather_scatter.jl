@@ -277,6 +277,6 @@ function create_atoms(
 end
 
 function gather(::LMP, ::String, ::Type, ::Union{Nothing, Array{Int32}}=nothing)
-    throw("`gather(::LMP, ::String, ::Type [,ids])` is deprecated! " *
+    error("`gather(::LMP, ::String, ::Type [,ids])` is deprecated! " *
     "use `gather(::LMP, ::String, ::_LMP_TYPE [,ids])` instead!")
 end
