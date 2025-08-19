@@ -1,4 +1,4 @@
-function _get_type_and_count(lmp::LMP, name::String)
+function _get_type_and_count(lmp::LMP, name::String, decode_image::Bool)
     count::Int = 0
     type::Int = -1
 
@@ -10,6 +10,9 @@ function _get_type_and_count(lmp::LMP, name::String)
         check(lmp)
         count = unsafe_load(count_ptr)
         type = iszero(count) ? API.LAMMPS_DOUBLE : API.LAMMPS_DOUBLE_2D
+    elseif decode_image && name == "image"
+        type = API.LAMMPS_INT_2D
+        count = 3
     else
         type = API.lammps_extract_atom_datatype(lmp, name)
         type == -1 && throw(ArgumentError("Unknown per-atom property $name"))
@@ -21,13 +24,13 @@ function _get_type_and_count(lmp::LMP, name::String)
 end
 
 function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) where {T <: Union{Int32, Float64}}
+    name == "mass" && throw(ArgumentError("scattering/gathering mass is currently not supported! Use `extract_atom()` instead."))
+
     dtype::Int = T === Float64 # 1 for Float64, 0 for Int32
     natoms = get_natoms(lmp)
     ndata::Int = isnothing(ids) ? natoms : length(ids)
 
-    (type, count) = name == "image" && ndims(data) == 2 ?
-        (API.LAMMPS_INT_2D, 3) :
-        _get_type_and_count(lmp, name)
+    (type, count) = _get_type_and_count(lmp, name, ndims(data) == 2)
 
     if type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
         T !== Float64 && throw(ArgumentError("Expected a matrix with eltype `Float64` got eltype `Int32` instead."))
@@ -78,10 +81,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
 function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
     ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
     
-    (type::Int, count) = name == "image" && lmp_type === LAMMPS_INT_2D ?
-        (API.LAMMPS_INT_2D, 3) :
-        _get_type_and_count(lmp, name)
-
+    (type, count) = _get_type_and_count(lmp, name, lmp_type === LAMMPS_INT_2D)
     count = max(1, count)
 
     expect = API._LMP_DATATYPE_CONST(type)
@@ -121,7 +121,6 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     representing the encoded or decoded image flags, respectively.
 """
 function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
     param = _check_array(lmp, name, data, ids)
     isnothing(ids) ?
         API.lammps_gather(param...) :
@@ -148,7 +147,6 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     representing the encoded or decoded image flags, respectively.
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
-    name == "mass" && error("scattering/gathering mass is currently not supported! Use `extract_atom()` instead.")
     param = _check_array(lmp, name, data, ids)
     isnothing(ids) ?
         API.lammps_scatter(param...) :
