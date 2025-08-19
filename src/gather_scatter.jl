@@ -44,17 +44,17 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
     size(data) == expected_size || throw(ArgumentError("expected array with size $expected_size got array of size $(size(data)) instead."))
 
     !_array_stride_valid(data) && throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
-    
     if isnothing(ids)
         return lmp, name, dtype, max(count, 1), data
     else
         @assert all(1 <= id <= natoms for id in ids)
+        !_array_stride_valid(ids) && throw(ArgumentError("ids must be contiguous in memory (i.e., interpretable as a 1D array)"))
         return lmp, name, dtype, max(count, 1), ndata, ids, data
     end
 end
 
 """
-    gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE [, ids::Array{Int32}])
+    gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE [, ids::Vector{Int32}])
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -78,7 +78,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     for the per-atom property "image" either `LAMMPS_INT` or `LAMMPS_INT_2D` can be provided as the `lmp_type`,
     returning the encoded or decoded image flags, respectively.
 """
-function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, Array{Int32}}=nothing)
+function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Nothing, AbstractVector{Int32}}=nothing)
     ndata::Int = isnothing(ids) ? get_natoms(lmp) : length(ids)
     
     (type, count) = _get_type_and_count(lmp, name, lmp_type === LAMMPS_INT_2D)
@@ -104,7 +104,7 @@ function gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE, ids::Union{Noth
 end
 
 """
-    gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::Array{Int32}]) where {T <: Union{Int32, Float64}}
+    gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::AbstractVector{Int32}]) where {T <: Union{Int32, Float64}}
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes and store the result in data.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -120,7 +120,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
-function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where {T <: Union{Int32, Float64}}
+function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, AbstractVector{Int32}}=nothing) where {T <: Union{Int32, Float64}}
     param = _check_array(lmp, name, data, ids)
     isnothing(ids) ?
         API.lammps_gather(param...) :
@@ -130,7 +130,7 @@ function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{N
 end
 
 """
-    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::Array{Int32}]) where T<:Union{Int32, Float64}
+    scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T} [, ids::AbstractVector{Int32}]) where T<:Union{Int32, Float64}
 
 Scatter the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entity in data to all processes.
 By default (when `ids=nothing`), this method scatters data to all atoms in consecutive order according to their IDs.
@@ -146,7 +146,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
-function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, Array{Int32}}=nothing) where T<:Union{Int32, Float64}
+function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, AbstractVector{Int32}}=nothing) where T<:Union{Int32, Float64}
     param = _check_array(lmp, name, data, ids)
     isnothing(ids) ?
         API.lammps_scatter(param...) :
