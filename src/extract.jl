@@ -126,6 +126,15 @@ end
     extract_box(lmp::LMP)
 
 Extract simulation box parameters.
+
+Returns a `LammpsBox` containing the following fields:
+ - `boxlo::NTuple{3, Float64}`
+ - `boxhi::NTuple{3, Float64}`
+ - `xy::Float64`
+ - `yz::Float64`
+ - `xz::Float64`
+ - `pflags::NTuple{3, Int32}`
+ - `boxflag::Int32`
 """
 function extract_box(lmp::LMP)
     boxlo = Ref{NTuple{3, Float64}}()
