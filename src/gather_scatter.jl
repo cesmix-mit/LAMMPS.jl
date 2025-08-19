@@ -33,9 +33,9 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
     (type, count) = _get_type_and_count(lmp, name, ndims(data) == 2)
 
     if type in (API.LAMMPS_DOUBLE, API.LAMMPS_DOUBLE_2D)
-        T !== Float64 && throw(ArgumentError("Expected a matrix with eltype `Float64` got eltype `Int32` instead."))
+        T !== Float64 && throw(ArgumentError("Expected an array with eltype `Float64` got eltype `Int32` instead."))
     elseif type in (API.LAMMPS_INT, API.LAMMPS_INT_2D)
-        T !== Int32 && throw(ArgumentError("Expected a matrix with eltype `Int32` got eltype `Float64` instead."))
+        T !== Int32 && throw(ArgumentError("Expected an array with eltype `Int32` got eltype `Float64` instead."))
     else
         @assert false # this shouldn't be possible, I think ...
     end
@@ -74,7 +74,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
 
-!!! note "image"
+!!! info "image"
     for the per-atom property "image" either `LAMMPS_INT` or `LAMMPS_INT_2D` can be provided as the `lmp_type`,
     returning the encoded or decoded image flags, respectively.
 """
@@ -116,7 +116,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
 
-!!! note "image"
+!!! info "image"
     for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
@@ -142,7 +142,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     The optional parameter `ids` only works, if there is a map defined. For example by doing:
     `command(lmp, "atom_modify map yes")`
 
-!!! note "image"
+!!! info "image"
     for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
