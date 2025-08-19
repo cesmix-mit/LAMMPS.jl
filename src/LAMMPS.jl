@@ -324,10 +324,10 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
     check(lmp)
 end
 
-
 function _array_stride_valid(arr)
-    # Only allow arrays which can be re-interpreted as a 1D array in memory. 
-    return strides(arr) == (1, Base.front(size(arr))...)
+    # Only allow arrays which can be re-interpreted as a 1D array in memory.
+    sizeprod = (cumprod ∘ Base.front ∘ size)(arr)
+    strides(arr) == (1, sizeprod...)
 end
 
 """
