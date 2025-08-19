@@ -62,7 +62,7 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
 end
 
 """
-    gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE [, ids::Vector{Int32}])
+    gather(lmp::LMP, name::String, lmp_type::_LMP_DATATYPE [, ids::AbstractVector{Int32}])
 
 Gather the named per-atom, per-atom fix, per-atom compute, or fix property/atom-based entities from all processes.
 By default (when `ids=nothing`), this method collects data from all atoms in consecutive order according to their IDs.
@@ -238,8 +238,8 @@ end
 """
     create_atoms(
         lmp::LMP, x::AbstractMatrix{Float64}, id::AbstractVector{Int32}, types::AbstractVector{Int32};
-        v::Union{Nothing,Matrix{Float64}}=nothing,
-        image::Union{Nothing,Vector{IMAGEINT}}=nothing,
+        v::Union{Nothing,AbstractMatrix{Float64}}=nothing,
+        image::Union{Nothing,AbstractVector{IMAGEINT}}=nothing,
         bexpand::Bool=false
     )
 
