@@ -2,7 +2,7 @@
 
 ```@autodocs 
 Modules = [LAMMPS]
-Pages = ["LAMMPS.jl", "external.jl"]
+Pages = ["LAMMPS.jl"]
 ```
 
 # extract API
@@ -17,4 +17,13 @@ Pages = ["extract.jl"]
 ```@autodocs 
 Modules = [LAMMPS]
 Pages = ["gather_scatter.jl"]
+```
+
+# FixExternal
+!!! danger "experimental feature"
+    The `FixExternal` and `PairExternal` API is highly experimental and is subject to major changes in the future
+
+```@autodocs
+Modules = [LAMMPS]
+Pages = ["external.jl"]
 ```
