@@ -1,3 +1,11 @@
+function _check_array_strides(arr, name::Symbol)
+    # Only allow arrays which can be re-interpreted as a 1D array in memory.
+    sizeprod = (cumprod ∘ Base.front ∘ size)(arr)
+    if strides(arr) != (1, sizeprod...)
+        throw(ArgumentError("$name must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    end
+end
+
 function _get_type_and_count(lmp::LMP, name::String, decode_image::Bool)
     count::Int = 0
     type::Int = -1
@@ -43,12 +51,12 @@ function _check_array(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids) wh
     expected_size = count == 0 ? (ndata, ) : (count, ndata)
     size(data) == expected_size || throw(ArgumentError("expected array with size $expected_size got array of size $(size(data)) instead."))
 
-    !_array_stride_valid(data) && throw(ArgumentError("data must be contiguous in memory (i.e., interpretable as a 1D array)"))
+    _check_array_strides(data, :data)
     if isnothing(ids)
         return lmp, name, dtype, max(count, 1), data
     else
         @assert all(1 <= id <= natoms for id in ids)
-        !_array_stride_valid(ids) && throw(ArgumentError("ids must be contiguous in memory (i.e., interpretable as a 1D array)"))
+        _check_array_strides(ids, :ids)
         return lmp, name, dtype, max(count, 1), ndata, ids, data
     end
 end
@@ -117,7 +125,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     `command(lmp, "atom_modify map yes")`
 
 !!! info "image"
-    for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
+    for the per-atom property "image" either a `AbstractVector{Int32}` or `AbstractMatrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
 function gather!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, AbstractVector{Int32}}=nothing) where {T <: Union{Int32, Float64}}
@@ -143,7 +151,7 @@ Compute entities have the prefix `c_`, fix entities use the prefix `f_`, and per
     `command(lmp, "atom_modify map yes")`
 
 !!! info "image"
-    for the per-atom property "image" either a `Vector{Int32}` or `Matrix{Int32}` can be used for the data array,
+    for the per-atom property "image" either a `AbstractVector{Int32}` or `AbstractMatrix{Int32}` can be used for the data array,
     representing the encoded or decoded image flags, respectively.
 """
 function scatter!(lmp::LMP, name::String, data::AbstractVecOrMat{T}, ids::Union{Nothing, AbstractVector{Int32}}=nothing) where T<:Union{Int32, Float64}
@@ -229,30 +237,31 @@ end
 
 """
     create_atoms(
-        lmp::LMP, x::AbstractMatrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
+        lmp::LMP, x::AbstractMatrix{Float64}, id::AbstractVector{Int32}, types::AbstractVector{Int32};
         v::Union{Nothing,Matrix{Float64}}=nothing,
         image::Union{Nothing,Vector{IMAGEINT}}=nothing,
         bexpand::Bool=false
     )
 
 Create atoms for a LAMMPS instance. 
-`x` contains the atom positions and should be a 3 by `n` `Matrix{Float64}`, where `n` is the number of atoms. 
-`id` contains the id of each atom and should be a length `n` `Vector{Int32}`.
-`types` contains the atomic type (LAMMPS number) of each atom and should be a length `n` `Vector{Int32}`.
-`v` contains the associated velocities and should be a 3 by `n` `Matrix{Float64}`.
-`image` contains the image flags for each atom and should be a length `n` `Vector{IMAGEINT}`.
+`x` contains the atom positions and should be a 3 by `n` `AbstractMatrix{Float64}`, where `n` is the number of atoms. 
+`id` contains the id of each atom and should be a length `n` `AbstractVector{Int32}`.
+`types` contains the atomic type (LAMMPS number) of each atom and should be a length `n` `AbstractVector{Int32}`.
+`v` contains the associated velocities and should be a 3 by `n` `AbstractMatrix{Float64}`.
+`image` contains the image flags for each atom and should be a length `n` `AbstractVector{IMAGEINT}`.
 `bexpand` is a `Bool` that defines whether or not the box should be expanded to fit the input atoms (default not).
 """
 function create_atoms(
-    lmp::LMP, x::AbstractMatrix{Float64}, id::Vector{Int32}, types::Vector{Int32};
-    v::Union{Nothing,Matrix{Float64}}=nothing,
-    image::Union{Nothing,Vector{IMAGEINT}}=nothing,
+    lmp::LMP, x::AbstractMatrix{Float64}, id::AbstractVector{Int32}, types::AbstractVector{Int32};
+    v::Union{Nothing,AbstractMatrix{Float64}}=nothing,
+    image::Union{Nothing,AbstractVector{IMAGEINT}}=nothing,
     bexpand::Bool=false
 )
     numAtoms = size(x, 2)
-    if !_array_stride_valid(x)
-        throw(ArgumentError("x must be contiguous in memory (i.e., interpretable as a 1D array)"))
-    end
+    _check_array_strides(x, :x)
+    _check_array_strides(id, :id)
+    _check_array_strides(types, :types)
+
     if size(x, 1) != 3
         throw(ArgumentError("x must be a n by 3 matrix, where n is the number of atoms"))
     end
@@ -262,11 +271,13 @@ function create_atoms(
     if numAtoms != length(types)
         throw(ArgumentError("types must have the same length as the number of atoms"))
     end
-    if v !== nothing && size(x) != size(v)
-        throw(ArgumentError("x and v must be the same size"))
+    if v !== nothing 
+        size(x) != size(v) && throw(ArgumentError("x and v must be the same size"))
+        _check_array_strides(v, :v)
     end
-    if image !== nothing && numAtoms != length(image)
-        throw(ArgumentError("image must have the same length as the number of atoms"))
+    if image !== nothing && 
+        numAtoms != length(image) && throw(ArgumentError("image must have the same length as the number of atoms"))
+        _check_array_strides(image, :image)
     end
 
     v = v === nothing ? C_NULL : v
