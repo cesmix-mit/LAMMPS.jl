@@ -32,6 +32,16 @@ end
 _is_2D_datatype(lmp_dtype::_LMP_DATATYPE) = lmp_dtype in (LAMMPS_INT_2D, LAMMPS_DOUBLE_2D, LAMMPS_INT64_2D)
 
 """
+    get_natoms(lmp::LMP)::Int64
+
+Get the total number of atoms in the LAMMPS instance.
+
+Will be precise up to 53-bit signed integer due to the
+underlying `lammps_get_natoms` returning a Float64.
+"""
+get_natoms(lmp::LMP)::Int64 = API.lammps_get_natoms(lmp)
+
+"""
     extract_setting(lmp::LMP, name::String)::Int32
 
 Query LAMMPS about global settings.

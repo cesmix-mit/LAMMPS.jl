@@ -325,18 +325,6 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
 end
 
 """
-    get_natoms(lmp::LMP)::Int64
-
-Get the total number of atoms in the LAMMPS instance.
-
-Will be precise up to 53-bit signed integer due to the
-underlying `lammps_get_natoms` returning a Float64.
-"""
-function get_natoms(lmp::LMP)
-    Int64(API.lammps_get_natoms(lmp))
-end
-
-"""
     encode_image_flags(ix, iy, iz)
     encode_image_flags(flags)
 
