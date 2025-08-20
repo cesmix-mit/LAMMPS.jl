@@ -134,11 +134,6 @@ Change the library path used by LAMMPS.jl for `liblammps.so` to `path`.
 
 !!! note
     You will need to restart Julia to use the new library.
-
-!!! warning
-    Due to a bug in Julia (until 1.6.5 and 1.7.1), setting preferences in transitive dependencies
-    is broken (https://github.com/JuliaPackaging/Preferences.jl/issues/24). To fix this either update
-    your version of Julia, or add LAMMPS_jll as a direct dependency to your project.
 """
 function set_library!(path)
     if !ispath(path)
@@ -150,14 +145,6 @@ function set_library!(path)
         force=true,
     )
     @warn "LAMMPS library path changed, you will need to restart Julia for the change to take effect" path
-
-    if VERSION <= v"1.6.5" || VERSION == v"1.7.0"
-        @warn """
-        Due to a bug in Julia (until 1.6.5 and 1.7.1), setting preferences in transitive dependencies
-        is broken (https://github.com/JuliaPackaging/Preferences.jl/issues/24). To fix this either update
-        your version of Julia, or add LAMMPS_jll as a direct dependency to your project.
-        """
-    end
 end
 
 """
