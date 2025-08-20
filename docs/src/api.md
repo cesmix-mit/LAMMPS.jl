@@ -5,25 +5,38 @@ Modules = [LAMMPS]
 Pages = ["LAMMPS.jl"]
 ```
 
-# extract API
+## extract API
 
 ```@autodocs
 Modules = [LAMMPS]
 Pages = ["extract.jl"]
 ```
 
-# gather/scatter operations
+## gather/scatter operations
 
 ```@autodocs 
 Modules = [LAMMPS]
 Pages = ["gather_scatter.jl"]
 ```
 
-# FixExternal
+## neighbor list access
+
+```@autodocs
+Modules = [LAMMPS]
+Pages = ["neighborlist.jl"]
+```
+
+## FixExternal
 !!! danger "experimental feature"
     The `FixExternal` and `PairExternal` API is highly experimental and is subject to major changes in the future
 
 ```@autodocs
 Modules = [LAMMPS]
 Pages = ["external.jl"]
+```
+
+## Utility functions
+```@autodocs
+Modules = [LAMMPS]
+Pages = ["utility.jl"]
 ```

@@ -134,11 +134,6 @@ Change the library path used by LAMMPS.jl for `liblammps.so` to `path`.
 
 !!! note
     You will need to restart Julia to use the new library.
-
-!!! warning
-    Due to a bug in Julia (until 1.6.5 and 1.7.1), setting preferences in transitive dependencies
-    is broken (https://github.com/JuliaPackaging/Preferences.jl/issues/24). To fix this either update
-    your version of Julia, or add LAMMPS_jll as a direct dependency to your project.
 """
 function set_library!(path)
     if !ispath(path)
@@ -150,22 +145,23 @@ function set_library!(path)
         force=true,
     )
     @warn "LAMMPS library path changed, you will need to restart Julia for the change to take effect" path
-
-    if VERSION <= v"1.6.5" || VERSION == v"1.7.0"
-        @warn """
-        Due to a bug in Julia (until 1.6.5 and 1.7.1), setting preferences in transitive dependencies
-        is broken (https://github.com/JuliaPackaging/Preferences.jl/issues/24). To fix this either update
-        your version of Julia, or add LAMMPS_jll as a direct dependency to your project.
-        """
-    end
 end
 
 """
-    LMP(args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
+    LMP([f::Function,] args::Vector{String}=String[], comm=MPI.COMM_WORLD)
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
 
 A full ist of command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
+
+!!! info "MPI"
+    If your lammps binary is build with MPI, you're required to call `MPI.Init()` before creating a lammps instance.
+
+```julia
+LMP(["-log", "none"]) do lmp
+    command(lmp, "print \\"created a new lammps instance\\"")
+end
+```
 """
 mutable struct LMP
     @atomic handle::Ptr{Cvoid}
@@ -205,6 +201,12 @@ mutable struct LMP
     end
 end
 
+function LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
+    lmp = LMP(args, comm)
+    return f(lmp)
+    # `close!` is registered as a finalizer for LMP, no need to close it here.
+end
+
 function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)    
     lmp.handle == C_NULL && error("The LMP object doesn't point to a valid LAMMPS instance! "
             * "This is usually caused by calling `LAMMPS.close!` or through serialization and deserialization.")
@@ -212,11 +214,6 @@ function Base.cconvert(::Type{Ptr{Cvoid}}, lmp::LMP)
 end
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, lmp::LMP) = lmp.handle
 
-"""
-    close!(lmp::LMP)
-
-Shutdown a LAMMPS instance.
-"""
 function close!(lmp::LMP)
     handle = @atomicswap lmp.handle = C_NULL
     if handle !== C_NULL 
@@ -224,33 +221,6 @@ function close!(lmp::LMP)
         API.lammps_close(handle)
     end
     return nothing
-end
-
-"""
-    LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
-
-Create a new LAMMPS instance and call `f` on that instance while returning the result from `f`.
-"""
-function LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
-    lmp = LMP(args, comm)
-    return f(lmp)
-    # `close!` is registered as a finalizer for LMP, no need to close it here.
-end
-
-function version(lmp::LMP)
-    API.lammps_version(lmp)
-end
-
-"""
-    get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
-
-Return the MPI communicator used by the lammps instance or `nothing` if the lammps build doesn't support MPI.
-"""
-function get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
-    comm_f = API.lammps_get_mpi_comm(lmp)
-    comm_f == -1 && return nothing
-    comm_c = MPI.API.MPI_Comm_f2c(comm_f)
-    return MPI.Comm(comm_c)
 end
 
 struct LAMMPSError <: Exception
@@ -291,10 +261,6 @@ After this processing the string is handed to LAMMPS for parsing and executing.
 
 Arrays of Strings get concatenated into a single String inserting newline characters as needed.
 
-!!! compat "LAMMPS.jl 0.4.1"
-    Multiline string support `\"""` and support for array of strings was added.
-    Prior versions of LAMMPS.jl ignore newline characters.
-
 # Examples
 
 ```julia
@@ -324,192 +290,10 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
     check(lmp)
 end
 
-"""
-    encode_image_flags(ix, iy, iz)
-    encode_image_flags(flags)
-
-Encode three integer image flags into a single imageint.
-"""
-encode_image_flags(ix, iy, iz) = API.lammps_encode_image_flags(ix, iy, iz)
-encode_image_flags(flags) = API.lammps_encode_image_flags(flags...)
-
-"""
-    decode_image_flags(image)
-
-Decode a single image flag integer into three regular integers.
-"""
-function decode_image_flags(image)
-    flags = Ref{NTuple{3, Cint}}()
-    @inline API.lammps_decode_image_flags(image, flags)
-    return flags[]
-end
-
-"""
-    group_to_atom_ids(lmp::LMP, group::String)
-
-Find the IDs of the Atoms in the group.
-"""
-function group_to_atom_ids(lmp::LMP, group::String)
-    # Pad with '\0' to avoid confusion with groups names that are truncated versions of name
-    # For example 'all' could be confused with 'a'
-    name_padded = codeunits(group * '\0')
-    buffer_size = length(name_padded)
-    buffer = zeros(UInt8, buffer_size)
-
-    ngroups = API.lammps_id_count(lmp, "group")
-    
-    for idx in 0:ngroups-1
-        API.lammps_id_name(lmp, "group", idx, buffer, buffer_size)
-        buffer != name_padded && continue
-
-        mask = gather(lmp, "mask", LAMMPS_INT) .& (1 << idx) .!= 0
-        all_ids = UnitRange{Int32}(1, get_natoms(lmp))
-
-        return all_ids[mask]
-    end
-
-    error("Cannot find group $group")
-end
-
-"""
-    get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
-
-Look up the names of entities within a certain category.
-
-Valid categories are: compute, dump, fix, group, molecule, region, and variable.
-names longer than `buffer_size` will be truncated to fit inside the buffer.
-"""
-function get_category_ids(lmp::LMP, category::String, buffer_size::Integer=50)
-    _check_valid_category(category)
-
-    count = API.lammps_id_count(lmp, category)
-    check(lmp)
-
-    res = Vector{String}(undef, count)
-
-    for i in 1:count
-        buffer = zeros(UInt8, buffer_size)
-        API.lammps_id_name(lmp, category, i-1, buffer, buffer_size)
-        res[i] = rstrip(String(buffer), '\0')
-    end
-
-    return res
-end
-
-_check_valid_category(category::String) = category in ("compute", "dump", "fix", "group", "molecule", "region", "variable") || error("$category is not a valid category name!")
-
-struct NeighListVec <: AbstractVector{Cint}
-    numneigh::Int
-    neighbors::Ptr{Int32}
-end
-
-function Base.getindex(nle::NeighListVec, i::Integer)
-    @boundscheck checkbounds(nle, i)
-    return unsafe_load(nle.neighbors, i)+Cint(1)
-end
-
-Base.size(nle::NeighListVec) = (nle.numneigh,)
-
-struct NeighList <: AbstractVector{Pair{Int32, NeighListVec}}
-    lmp::LMP
-    idx::Cint
-end
-
-function Base.getindex(nl::NeighList, element::Integer)
-    iatom = Ref{Cint}()
-    numneigh = Ref{Cint}()
-    neighbors = Ref{Ptr{Cint}}()
-    @inline API.lammps_neighlist_element_neighbors(nl.lmp, nl.idx, element-one(element) #= 0-based indexing =#, iatom, numneigh, neighbors)
-    @boundscheck iatom[] == -1 && throw(BoundsError(nl, element))
-    return iatom[]+Cint(1) => NeighListVec(numneigh[], neighbors[])
-end
-
-Base.size(nl::NeighList) = (API.lammps_neighlist_num_elements(nl.lmp, nl.idx),)
-
-"""
-    compute_neighborlist(lmp::LMP, id::String; request=0)
-
-Retrieve neighbor list requested by a compute.
-
-The neighbor list request from a compute is identified by the compute ID and the request ID.
-The request ID is typically 0, but will be > 0 in case a compute has multiple neighbor list requests.
-
-Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned from `extract_atom`.
-"""
-function compute_neighborlist(lmp::LMP, id::String; request=0)
-    idx = API.lammps_find_compute_neighlist(lmp, id, request)
-    idx == -1 && throw(KeyError(id))
-    return NeighList(lmp, idx)
-end
-
-"""
-    fix_neighborlist(lmp::LMP, id::String; request=0)
-
-Retrieve neighbor list requested by a fix.
-
-The neighbor list request from a fix is identified by the fix ID and the request ID.
-The request ID is typically 0, but will be > 0 in case a fix has multiple neighbor list requests.
-
-Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned from `extract_atom`.
-"""
-function fix_neighborlist(lmp::LMP, id::String; request=0)
-    idx = API.lammps_find_compute_neighlist(lmp, id, request)
-    idx == -1 && throw(KeyError(id))
-    return NeighList(lmp, idx)
-end
-
-"""
-    pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
-
-This function determines which of the available neighbor lists for pair styles matches the given conditions. It first matches the style name. If exact is true the name must match exactly,
-if exact is false, a regular expression or sub-string match is done. If the pair style is hybrid or hybrid/overlay the style is matched against the sub styles instead.
-If a the same pair style is used multiple times as a sub-style, the nsub argument must be > 0 and represents the nth instance of the sub-style (same as for the pair_coeff command, for example).
-In that case nsub=0 will not produce a match and this function will Error.
-
-The final condition to be checked is the request ID (reqid). This will normally be 0, but some pair styles request multiple neighbor lists and set the request ID to a value > 0.
-
-Each neighbor list contains vectors of local indices of neighboring atoms.
-These can be used to index into Arrays returned from `extract_atom`.
-
-## Examples
-```julia
-lmp = LMP()
-
-command(lmp, \"""
-    region cell block 0 3 0 3 0 3
-    create_box 1 cell
-    lattice sc 1
-    create_atoms 1 region cell
-    mass 1 1
-
-    pair_style zero 1.0
-    pair_coeff * *
-
-    run 1
-\""")
-
-x = extract_atom(lmp, "x", LAMMPS_DOUBLE_2D; with_ghosts=true)
-
-for (iatom, neighs) in pair_neighborlist(lmp, "zero")
-    for jatom in neighs
-        ix = @view x[:, iatom]
-        jx = @view x[:, jatom]
-
-        println(ix => jx)
-   end
-end
-```
-"""
-function pair_neighborlist(lmp::LMP, style::String; exact=false, nsub=0, request=0)
-    idx = API.lammps_find_pair_neighlist(lmp, style, exact, nsub, request)
-    idx == -1 && throw(KeyError(style))
-    return NeighList(lmp, idx)
-end
-
 include("extract.jl")
 include("gather_scatter.jl")
+include("neighborlist.jl")
 include("external.jl")
+include("utility.jl")
 
 end # module
