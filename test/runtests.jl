@@ -14,7 +14,9 @@ LMP(["-screen", "none"]) do lmp
     @test LAMMPS.version(lmp) >= 0
     command(lmp, "clear")
 
-    @test_throws LAMMPSError command(lmp, "nonsense")
+    @test_throws LAMMPSError command(lmp, "nonesense")
+    @test_throws LAMMPSError LAMMPS.eval(lmp, "nonesense")
+    @test LAMMPS.eval(lmp, "1+1") == 2
 
     LAMMPS.close!(lmp)
 
