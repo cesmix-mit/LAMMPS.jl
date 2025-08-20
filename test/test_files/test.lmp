@@ -1,0 +1,3 @@
+region cell block 0 3 0 3 0 3
+create_box 1 cell
+variable var equal 1.0

@@ -290,6 +290,16 @@ function command(lmp::LMP, cmd::Union{String, Array{String}})
     check(lmp)
 end
 
+"""
+    file(lmp::LMP, file::String)
+
+This function processes commands in the file pointed to by filename line by line and thus functions very similar to the include command. The function returns when the end of the file is reached and the commands have completed.
+"""
+function file(lmp::LMP, file::String)
+    API.lammps_file(lmp, file)
+    check(lmp)
+end
+
 include("extract.jl")
 include("gather_scatter.jl")
 include("neighborlist.jl")
