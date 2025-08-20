@@ -19,6 +19,13 @@ Modules = [LAMMPS]
 Pages = ["gather_scatter.jl"]
 ```
 
+# neighbor list access
+
+```@autodocs
+Modules = [LAMMPS]
+Pages = ["neighborlist.jl"]
+```
+
 # FixExternal
 !!! danger "experimental feature"
     The `FixExternal` and `PairExternal` API is highly experimental and is subject to major changes in the future
