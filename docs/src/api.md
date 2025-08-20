@@ -34,3 +34,9 @@ Pages = ["neighborlist.jl"]
 Modules = [LAMMPS]
 Pages = ["external.jl"]
 ```
+
+## Utility functions
+```@autodocs
+Modules = [LAMMPS]
+Pages = ["utility.jl"]
+```
