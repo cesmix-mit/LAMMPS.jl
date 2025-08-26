@@ -117,10 +117,8 @@ function set_virial!(fix::FixExternal, virial_peratom::AbstractVector{SVector{6,
     virial_global = MVector(sum(view(virial_peratom, 1:fix.nlocal)))
     comm = get_mpi_comm(fix.lmp)
     GC.@preserve virial_global begin
-        if comm !== nothing
-            buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.Datatype(Float64))
-            @inline MPI.Allreduce!(buffer, +, comm)
-        end
+        buffer = MPI.RBuffer(MPI.IN_PLACE, pointer(virial_global), 6, MPI.Datatype(Float64))
+        @inline MPI.Allreduce!(buffer, +, comm)
         @inline API.lammps_fix_external_set_virial_global(fix.lmp, fix.name, virial_global)
     end
 
@@ -145,9 +143,7 @@ function set_energy!(fix::FixExternal, energy::AbstractVector{Float64})
 
     energy_global = sum(view(energy, 1:fix.nlocal))
     comm = get_mpi_comm(fix.lmp)
-    if comm !== nothing
-        energy_global = MPI.Allreduce(energy_global, +, comm)
-    end
+    energy_global = MPI.Allreduce(energy_global, +, comm)
     API.lammps_fix_external_set_energy_global(fix.lmp, fix.name, energy_global)
 
     check(fix.lmp)
