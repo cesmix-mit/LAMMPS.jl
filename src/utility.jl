@@ -18,11 +18,11 @@ end
 """
     get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
 
-Return the MPI communicator used by the lammps instance or `nothing` if the lammps build doesn't support MPI.
+Return the MPI communicator used by the lammps instance or `MPI.COMM_SELF` if the lammps build doesn't support MPI.
 """
-function get_mpi_comm(lmp::LMP)::Union{Nothing, MPI.Comm}
+function get_mpi_comm(lmp::LMP)::MPI.Comm
     comm_f = API.lammps_get_mpi_comm(lmp)
-    comm_f == -1 && return nothing
+    comm_f == -1 && return MPI.COMM_SELF
     comm_c = MPI.API.MPI_Comm_f2c(comm_f)
     return MPI.Comm(comm_c)
 end
