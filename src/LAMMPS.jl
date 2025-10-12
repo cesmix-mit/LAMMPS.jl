@@ -103,15 +103,9 @@ function __init__()
     BIGINT != (API.lammps_extract_setting(C_NULL, "bigint") == 4 ? Int32 : Int64) &&
         error("The size of the LAMMPS integer type BIGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
     TAGINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
-         error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
-     IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
-         error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
-
-    if API.lammps_config_has_mpi_support() == 0
-        @warn "The currently loaded LAMMPS installation does not have MPI enabled! \n" *
-        "Please provide your own LAMMPS installation with `LAMMPS.set_library()` if you \n" *
-        "want to run LAMMPS in parallel using MPI." 
-    end
+        error("The size of the LAMMPS integer type TAGINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
+    IMAGEINT != (API.lammps_extract_setting(C_NULL, "tagint") == 4 ? Int32 : Int64) &&
+        error("The size of the LAMMPS integer type IMAGEINT has changed! To fix this, you need to manually invalidate the LAMMPS.jl cache.")
 
     if API.lammps_config_has_exceptions() == 0
         @warn "The currently loaded LAMMPS installation doesn't have exceptions enabled! \n" *
@@ -148,14 +142,15 @@ function set_library!(path)
 end
 
 """
-    LMP([f::Function,] args::Vector{String}=String[], comm=MPI.COMM_WORLD)
+    LMP([f::Function,] args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
 
 Create a new LAMMPS instance while passing in a list of strings as if they were command-line arguments for the LAMMPS executable.
 
 A full ist of command-line options can be found in the [lammps documentation](https://docs.lammps.org/Run_options.html).
 
 !!! info "MPI"
-    If your lammps binary is build with MPI, you're required to call `MPI.Init()` before creating a lammps instance.
+    If MPI is not yet initialized, `MPI.Init()` will be called during creation of the LMP instance.
+    This is the case even for lammps binaries that are build without MPI support.
 
 ```julia
 LMP(["-log", "none"]) do lmp
@@ -168,20 +163,15 @@ mutable struct LMP
     external_fixes::Dict{String, Any}
 
     function LMP(args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
-        args = copy(args)
-        pushfirst!(args, "lammps")
-
-        GC.@preserve args begin
-            if API.lammps_config_has_mpi_support() == 0
-                handle = API.lammps_open_no_mpi(length(args), args, C_NULL)
-            else
-                if !MPI.Initialized()
-                    error("MPI has not been initialized. Make sure to first call `MPI.Init()`")
-                end
-                handle = API.lammps_open(length(args), args, comm, C_NULL)
-            end
+        MPI.Initialized() || MPI.Init()
+        if API.lammps_config_has_mpi_support() == 0 && MPI.Comm_size(comm) != 1
+            msg = "The lammps binary doesn't support MPI but the communicator has size > 1.\n" *
+            "If you want to use MPI with lammps, please provide your own lammps installation with `LAMMPS.set_library()`"
+            throw(ArgumentError(msg))
         end
 
+        args = ["lammps"; args]
+        handle = API.lammps_open(length(args), args, comm, C_NULL)
         if API.lammps_has_error(handle) != 0
             buf = zeros(UInt8, 100)
             API.lammps_get_last_error_message(handle, buf, length(buf))
@@ -201,7 +191,7 @@ mutable struct LMP
     end
 end
 
-function LMP(f::Function, args=String[], comm=MPI.COMM_WORLD)
+function LMP(f::Function, args::Vector{String}=String[], comm::MPI.Comm=MPI.COMM_WORLD)
     lmp = LMP(args, comm)
     return f(lmp)
     # `close!` is registered as a finalizer for LMP, no need to close it here.
