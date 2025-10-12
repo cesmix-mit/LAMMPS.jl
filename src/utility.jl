@@ -1,11 +1,11 @@
 """
-    eval(lmp::LMP, expr::String)
+    evaluate(lmp::LMP, expr::String)
 
 Evaluate an immediate variable expression
 
 This function takes a string with an expression that can be used for equal style variables, evaluates it and returns the resulting (scalar) value as a floating point number.
 """
-function eval(lmp::LMP, expr::String)
+function evaluate(lmp::LMP, expr::String)
     result = API.lammps_eval(lmp, expr)
     check(lmp)
     result
