@@ -161,7 +161,7 @@ suite = BenchmarkGroup()
 
 suite["Reference"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_reference())
 suite["ForwardDiff"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_external(AutoForwardDiff()))
-suite["Enzyme"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_external(AutoEnzyme()))
+# suite["Enzyme"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_external(AutoEnzyme())) # TODO: figure out why AutoEnzyme() doesn't work
 suite["Manual"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_external(nothing))
 suite["Optimistic"] = @benchmarkable command(lmp, "run 100") setup = (lmp = setup_optimistic())
 
