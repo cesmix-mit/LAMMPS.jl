@@ -301,6 +301,70 @@ function extract_compute(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_ty
 end
 
 """
+    extract_fix(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE)
+
+Extract data provided by a fix command identified by the fix-ID.
+Fixes may provide global, per-atom, or local data, and those may be a scalar, a vector or an array.
+Since fixes may provide multiple kinds of data, it is required to set style and type flags representing what specific data is desired.
+
+| valid values for `style`:            |
+| :----------------------------------- |
+| `STYLE_GLOBAL` (Not yet implemented) |
+| `STYLE_ATOM`                         |
+| `STYLE_LOCAL`                        |
+
+| valid values for `lmp_type`: | resulting return type:   |
+| :--------------------------- | :----------------------- |
+| `TYPE_SCALAR`                | `UnsafeArray{Float64, 0}`|
+| `TYPE_VECTOR`                | `UnsafeArray{Float64, 1}`|
+| `TYPE_ARRAY`                 | `UnsafeArray{Float64, 2}`|
+
+Scalar values get returned as arrays with a single element. This way it's possible to
+modify the internal state of the LAMMPS instance even if the data is scalar.
+
+!!! info
+    The returned data may become invalid as soon as another LAMMPS command has been issued at any point after calling this method.
+    If this has happened, trying to read from this data will likely cause julia to crash.
+    To prevent this, copy the returned data.
+"""
+function extract_fix(lmp::LMP, name::String, style::_LMP_STYLE_CONST, lmp_type::_LMP_TYPE)
+    if style == STYLE_GLOBAL
+        throw(ArgumentError("Extracting global data from a fix is currently not supported!"))
+    end
+
+    void_ptr = API.lammps_extract_fix(lmp, name, style, get_enum(lmp_type), 0, 0)
+    check(lmp)
+
+    if lmp_type == SIZE_COLS || lmp_type == SIZE_ROWS || lmp_type == SIZE_VECTOR
+        ptr = _reinterpret(LAMMPS_INT, void_ptr)
+        return _extract(ptr)
+    end
+
+    if lmp_type == TYPE_SCALAR
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return _extract(ptr)
+    end
+
+    if lmp_type == TYPE_VECTOR
+        ndata = (style == STYLE_ATOM) ?
+            extract_setting(lmp, "nlocal") :
+            extract_fix(lmp, name, style, SIZE_VECTOR)[]
+
+        ptr = _reinterpret(LAMMPS_DOUBLE, void_ptr)
+        return  _extract(ptr, ndata)
+    end
+
+    ndata = (style == STYLE_ATOM) ?
+        extract_setting(lmp, "nlocal") :
+        extract_fix(lmp, name, style, SIZE_ROWS)[]
+
+    count = extract_fix(lmp, name, style, SIZE_COLS)[]
+    ptr = _reinterpret(LAMMPS_DOUBLE_2D, void_ptr)
+
+    return _extract(ptr, (count, ndata))
+end
+
+"""
     extract_variable(lmp::LMP, name::String, lmp_variable::LMP_VARIABLE, group::Union{String, Nothing}=nothing)
 
 Extracts the data from a LAMMPS variable. When the variable is either an `equal`-style compatible variable,
