@@ -309,7 +309,7 @@ Since fixes may provide multiple kinds of data, it is required to set style and 
 
 | valid values for `style`:            |
 | :----------------------------------- |
-| `STYLE_GLOBAL` (Not jet implemented) |
+| `STYLE_GLOBAL` (Not yet implemented) |
 | `STYLE_ATOM`                         |
 | `STYLE_LOCAL`                        |
 
