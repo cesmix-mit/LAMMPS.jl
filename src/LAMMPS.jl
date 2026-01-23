@@ -14,7 +14,7 @@ export LMP, command, create_atoms, get_natoms, extract_atom, extract_compute, ex
        gather_impropers, scatter!, group_to_atom_ids, get_category_ids, extract_variable, LAMMPSError, FixExternal,
        PairExternal, set_energy!, set_virial!, InteractionConfig,
        encode_image_flags, decode_image_flags, compute_neighborlist, fix_neighborlist, pair_neighborlist,
-       get_mpi_comm,
+       get_mpi_comm, extract_fix,
 
        # _LMP_DATATYPE
        LAMMPS_NONE,

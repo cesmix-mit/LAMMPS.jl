@@ -285,6 +285,29 @@ end
     end
 end
 
+@testset "Extract Fix" begin
+    LMP(["-screen", "none"]) do lmp
+        command(lmp, """
+            atom_modify map yes
+            region cell block 0 3 0 3 0 3
+            create_box 1 cell
+            lattice sc 1
+            create_atoms 1 region cell
+            mass 1 1
+
+            fix ave all ave/atom 1 1 1 x y z
+            run 0
+        """)
+
+        @inferred UnsafeArray{Float64, 2} extract_fix(lmp, "ave", STYLE_ATOM, TYPE_ARRAY)
+        @test extract_fix(lmp, "ave", STYLE_ATOM, TYPE_ARRAY) == extract_atom(lmp, "x", LAMMPS_DOUBLE_2D)
+        @test_throws LAMMPS.LAMMPSError extract_fix(lmp, "nonesense", STYLE_ATOM, TYPE_ARRAY)
+
+        # verify that no errors were missed
+        @test LAMMPS.API.lammps_has_error(lmp) == 0
+    end
+end
+
 @testset "Utilities" begin
     LMP(["-screen", "none"]) do lmp
         # setting up example data
