@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Basic SNAP · LAMMPS.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link rel="canonical" href="https://cesmix-mit.github.io/LAMMPS.jl/generated/snap/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">LAMMPS.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Basic SNAP</a><ul class="internal"><li><a class="tocitem" href="#Install-dependencies"><span>Install dependencies</span></a></li></ul></li><li><a class="tocitem" href="../fitting_snap/">Fitting SNAP</a></li></ul></li><li><a class="tocitem" href="../../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Basic SNAP</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Basic SNAP</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/cesmix-mit/LAMMPS.jl/blob/main/examples/snap.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="SNAP-example-using-GaN"><a class="docs-heading-anchor" href="#SNAP-example-using-GaN">SNAP example using GaN</a><a id="SNAP-example-using-GaN-1"></a><a class="docs-heading-anchor-permalink" href="#SNAP-example-using-GaN" title="Permalink"></a></h1><p>In this example we extract the bispectrum from SNAP. This example demonstrates how to install and use LAMMPS.jl</p><h2 id="Install-dependencies"><a class="docs-heading-anchor" href="#Install-dependencies">Install dependencies</a><a id="Install-dependencies-1"></a><a class="docs-heading-anchor-permalink" href="#Install-dependencies" title="Permalink"></a></h2><p>First let&#39;s make sure we have all required packages installed</p><pre><code class="language-julia hljs">using Pkg
+pkg&quot;add LAMMPS&quot;</code></pre><p>LAMMPS.jl will automatically download and install a pre-built version of LAMMPS.</p><p>We start off by importing <code>LAMMPS</code>.</p><pre><code class="language-julia hljs">using LAMMPS
+
+const DATA = joinpath(dirname(pathof(LAMMPS)), &quot;..&quot;, &quot;examples&quot;, &quot;example_GaN_data&quot;)
+
+function run_snap(lmp, path, rcut, twojmax)
+    read_data_str = &quot;read_data &quot; * path
+
+    command(lmp, &quot;log none&quot;)
+    command(lmp, &quot;units metal&quot;)
+    command(lmp, &quot;boundary p p p&quot;)
+    command(lmp, &quot;atom_style atomic&quot;)
+    command(lmp, &quot;atom_modify map array&quot;)
+    command(lmp, read_data_str)
+    command(lmp, &quot;pair_style zero $rcut&quot;)
+    command(lmp, &quot;pair_coeff * *&quot;)
+    command(lmp, &quot;compute PE all pe&quot;)
+    command(lmp, &quot;compute S all pressure thermo_temp&quot;)
+    command(lmp, &quot;compute SNA all sna/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1&quot;)
+    command(lmp, &quot;compute SNAD all snad/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1&quot;)
+    command(lmp, &quot;compute SNAV all snav/atom $rcut 0.99363 $twojmax 0.5 0.5 1.0 0.5 rmin0 0.0 bzeroflag 0 quadraticflag 0 switchflag 1&quot;)
+    command(lmp, &quot;thermo_style custom pe&quot;)
+    command(lmp, &quot;run 0&quot;)
+
+    # Extract bispectrum
+    bs = extract_compute(lmp, &quot;SNA&quot;, LAMMPS.API.LMP_STYLE_ATOM,
+                                     LAMMPS.API.LMP_TYPE_ARRAY)
+    return bs
+end
+
+function calculate_snap_bispectrum(path, rcut, twojmax, M, N1, N2)
+    J = twojmax / 2
+    ncoeff = round(Int, (J+1)*(J+2)*((J+(1.5))/3) + 1)
+
+    A = LMP([&quot;-screen&quot;,&quot;none&quot;]) do lmp
+        A = Array{Float64}(undef, M, 2*ncoeff) # bispectrum is 2*(ncoeff - 1) + 2
+        for m in 1:M
+            data = joinpath(path, string(m), &quot;DATA&quot;)
+            bs = run_snap(lmp, data, rcut, twojmax)
+
+            # Make bispectrum sum vector
+            row = Float64[]
+
+            push!(row, N1)
+
+            for k in 1:(ncoeff-1)
+                acc = 0.0
+                for n in 1:N1
+                    acc += bs[k, n]
+                end
+                push!(row, acc)
+            end
+
+            push!(row, N2)
+            for k in 1:(ncoeff-1)
+                acc = 0.0
+                for n in N1 .+ (1:N2)
+                    acc += bs[k, n]
+                end
+                push!(row, acc)
+            end
+
+            A[m, :] = row
+
+            command(lmp, &quot;clear&quot;)
+        end
+        return A
+    end
+    return A, ncoeff
+end
+
+const rcut = 3.5
+const twojmax = 6
+const M  = 48 # number of input files
+const N1 = 96 # number of atoms of the first type
+const N2 = 96 # number of atoms of the second type
+A, ncoeff = calculate_snap_bispectrum(DATA, rcut, twojmax, M, N1, N2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">([96.0 1268.5557843420975 … 1180.7558924948773 588.7418584316453; 96.0 1232.048772838382 … 1121.6019535468952 628.231524039073; … ; 96.0 1241.4232036200624 … 1126.7328481178909 620.7215199537948; 96.0 1245.592820148186 … 1124.7491827171007 629.3130123339647], 31)</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../fitting_snap/">Fitting SNAP »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 6 April 2023 22:18">Thursday 6 April 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
